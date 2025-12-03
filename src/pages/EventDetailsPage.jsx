@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Breadcrumbs from '@/components/common/Breadcrumbs';
-import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps";
 
 const EventDetailsPage = () => {
     const { slug } = useParams();
@@ -99,15 +98,14 @@ const EventDetailsPage = () => {
                                     </Card>
                                     <Card>
                                         <CardHeader><CardTitle className="text-xl">Localização</CardTitle></CardHeader>
-                                        <CardContent className="h-64 rounded-lg overflow-hidden border border-gray-300">
-                                            <ComposableMap projection="geoMercator" projectionConfig={{ scale: 150000, center: [event.lng, event.lat] }}>
-                                                <Geographies geography="/maps/brazil-states.json">
-                                                    {({ geographies }) => geographies.map(geo => <Geography key={geo.rsmKey} geography={geo} fill="#EAEAEC" stroke="#D6D6DA" />)}
-                                                </Geographies>
-                                                <Marker coordinates={[event.lng, event.lat]}>
-                                                    <circle r={8} fill="#F53" />
-                                                </Marker>
-                                            </ComposableMap>
+                                        <CardContent className="h-64 rounded-lg overflow-hidden border border-gray-300 flex flex-col items-start justify-center space-y-2">
+                                            <div className="flex items-center text-gray-700">
+                                                <MapPin className="mr-2" />
+                                                <span>{event.location}, {event.city}</span>
+                                            </div>
+                                            <p className="text-sm text-gray-500">
+                                                Mapa interativo indisponível no momento. Use o endereço acima para encontrar o local no seu app de mapas favorito.
+                                            </p>
                                         </CardContent>
                                     </Card>
                                 </div>
