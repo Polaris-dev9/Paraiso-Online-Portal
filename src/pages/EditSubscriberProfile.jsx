@@ -251,11 +251,14 @@ const EditSubscriberProfile = () => {
             await subscriberService.updateSubscriber(subscriber.id, updateData);
 
             toast({
+                variant: "success",
                 title: "✅ Perfil atualizado com sucesso!",
                 description: "Suas informações foram salvas.",
             });
 
-            navigate('/area-do-assinante');
+            // Após salvar o perfil, levar o usuário para a área do assinante
+            // Rota em inglês para compatibilidade com requisitos do cliente
+            navigate('/subscriber-area', { replace: true });
 
         } catch (error) {
             console.error('Error updating subscriber:', error);

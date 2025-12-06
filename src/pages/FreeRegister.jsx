@@ -20,21 +20,26 @@ const GoogleIcon = () => (
 
 const FreeRegister = () => {
     const { toast } = useToast();
-    const { user, signInWithGoogle } = useSupabaseAuth();
+    const { user, signInWithGoogle, signUp, signInWithPassword, resendConfirmationEmail } = useSupabaseAuth();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [profileData, setProfileData] = useState({ name: '', bio: '', phone: '' });
     const [formLoading, setFormLoading] = useState(false);
+    const [registrationMethod, setRegistrationMethod] = useState('google'); // 'google' or 'email'
+    const [emailData, setEmailData] = useState({ email: '', password: '', confirmPassword: '', name: '' });
+    const [emailLoading, setEmailLoading] = useState(false);
 
     useEffect(() => {
         if (user) {
-            toast({
-                title: '✅ Cadastro realizado!',
-                description: 'Agora complete seu perfil básico.',
-            });
-            setProfileData(prev => ({ ...prev, name: user.user_metadata?.full_name || '' }));
+            // Preencher nome do metadata se disponível
+            if (!profileData.name) {
+                const nameFromMetadata = user.user_metadata?.full_name || emailData.name;
+                if (nameFromMetadata) {
+                    setProfileData(prev => ({ ...prev, name: nameFromMetadata }));
+                }
+            }
         }
-    }, [user, toast]);
+    }, [user, toast, profileData.name, emailData.name]);
 
     const handleGoogleSignIn = async () => {
         setLoading(true);
@@ -47,6 +52,105 @@ const FreeRegister = () => {
             });
         }
         setLoading(false);
+    };
+
+    const handleEmailSignUp = async (e) => {
+        e.preventDefault();
+        
+        // Validações
+        if (!emailData.email || !emailData.password) {
+            toast({
+                variant: "destructive",
+                title: "Campos obrigatórios",
+                description: "Por favor, preencha email e senha.",
+            });
+            return;
+        }
+
+        if (emailData.password !== emailData.confirmPassword) {
+            toast({
+                variant: "destructive",
+                title: "Senhas não coincidem",
+                description: "As senhas devem ser iguais.",
+            });
+            return;
+        }
+
+        if (emailData.password.length < 6) {
+            toast({
+                variant: "destructive",
+                title: "Senha muito curta",
+                description: "A senha deve ter pelo menos 6 caracteres.",
+            });
+            return;
+        }
+
+        setEmailLoading(true);
+        
+        try {
+            const { data, error } = await signUp(
+                emailData.email.trim(),
+                emailData.password,
+                {
+                    full_name: emailData.name || emailData.email.split('@')[0]
+                }
+            );
+
+            if (error) {
+                throw error;
+            }
+
+            // Se o usuário foi criado
+            if (data?.user) {
+                // Preencher dados básicos se fornecidos
+                if (emailData.name) {
+                    setProfileData(prev => ({ ...prev, name: emailData.name }));
+                }
+
+                // Verificar se há sessão ativa
+                if (data.session) {
+                    // Sessão criada automaticamente - usuário será atualizado pelo contexto em breve
+                    toast({
+                        variant: "success",
+                        title: '✅ Conta criada!',
+                        description: 'Agora complete seu perfil básico.',
+                    });
+                    console.log('[FreeRegister] Session created, user will be available shortly');
+                } else {
+                    // Não há sessão - precisa confirmar email
+                    // Não tentar fazer login automaticamente - vai falhar se email não confirmado
+                    toast({
+                        variant: "success",
+                        title: '✅ Conta criada!',
+                        description: 'Enviamos um email de confirmação. Verifique sua caixa de entrada.',
+                        duration: 6000
+                    });
+
+                    // Aguardar um pouco e então mostrar opções
+                    setTimeout(() => {
+                        toast({
+                            variant: "default",
+                            title: '📧 Confirme seu email',
+                            description: 'Após confirmar o email, você poderá fazer login. Ou confirme manualmente no Supabase Dashboard.',
+                            duration: 8000
+                        });
+                        // Redirecionar para página de login após mostrar as mensagens
+                        setTimeout(() => {
+                            navigate('/area-do-assinante');
+                        }, 2000);
+                    }, 3000);
+                }
+            }
+        } catch (error) {
+            console.error('Error signing up:', error);
+            toast({
+                variant: "destructive",
+                title: 'Erro ao criar conta',
+                description: error.message || 'Não foi possível criar sua conta. Tente novamente.',
+            });
+        } finally {
+            setEmailLoading(false);
+        }
     };
 
     const handleProfileSubmit = async (e) => {
@@ -80,10 +184,15 @@ const FreeRegister = () => {
             }
 
             toast({
+                variant: "success",
                 title: '🎉 Perfil Salvo!',
                 description: 'Sua página básica foi criada com sucesso.',
             });
-            navigate('/area-do-assinante');
+            
+            // Aguardar um pouco antes de redirecionar para evitar conflitos de renderização
+            setTimeout(() => {
+                navigate('/subscriber-area', { replace: true });
+            }, 500);
         } catch (error) {
             console.error('Error saving profile:', error);
             toast({ 
@@ -102,11 +211,7 @@ const FreeRegister = () => {
                 <Helmet>
                     <title>Complete seu Perfil - Portal Paraíso Online</title>
                 </Helmet>
-                <motion.div 
-                    initial={{ opacity: 0, y: 20 }} 
-                    animate={{ opacity: 1, y: 0 }}
-                    className="container mx-auto max-w-2xl"
-                >
+                <div className="container mx-auto max-w-2xl">
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-3xl font-bold text-blue-900 flex items-center"><CheckCircle className="mr-3 text-green-500" /> Bem-vindo(a)!</CardTitle>
@@ -133,7 +238,7 @@ const FreeRegister = () => {
                             </form>
                         </CardContent>
                     </Card>
-                </motion.div>
+                </div>
             </div>
         );
     }
@@ -146,11 +251,7 @@ const FreeRegister = () => {
             </Helmet>
 
             <div className="container mx-auto px-4">
-                <motion.div 
-                    initial={{ opacity: 0, y: -20 }} 
-                    animate={{ opacity: 1, y: 0 }} 
-                    className="text-center mb-12"
-                >
+                <div className="text-center mb-12">
                     <h1 className="text-4xl lg:text-5xl font-bold text-blue-900 mb-4">
                         <UserPlus className="inline-block mr-3" />
                         Cadastro Gratuito
@@ -158,31 +259,124 @@ const FreeRegister = () => {
                     <p className="text-xl text-gray-600 max-w-3xl mx-auto">
                         Crie sua página básica em segundos e comece a ser encontrado por novos clientes.
                     </p>
-                </motion.div>
+                </div>
 
-                <motion.div 
-                    initial={{ opacity: 0, scale: 0.95 }} 
-                    animate={{ opacity: 1, scale: 1 }} 
-                    transition={{ duration: 0.6, delay: 0.2 }}
-                    className="bg-white rounded-lg shadow-2xl p-8 max-w-md mx-auto text-center"
-                >
-                    <h2 className="text-2xl font-semibold text-gray-800 mb-4">Comece com um clique</h2>
-                    <p className="text-gray-600 mb-6">Use sua conta Google para um cadastro rápido e seguro.</p>
-                    <Button onClick={handleGoogleSignIn} variant="outline" className="w-full text-lg py-6" disabled={loading}>
-                        {loading ? (
-                            <>
-                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                Aguarde...
-                            </>
-                        ) : (
-                            <>
-                                <GoogleIcon />
-                                Cadastrar-se com Google
-                            </>
-                        )}
-                    </Button>
-                    <p className="text-xs text-gray-500 mt-4">Ao continuar, você concorda com nossos <a href="/termos" className="underline">Termos de Serviço</a> e <a href="/privacidade" className="underline">Política de Privacidade</a>.</p>
-                </motion.div>
+                <div className="bg-white rounded-lg shadow-2xl p-8 max-w-md mx-auto">
+                    {/* Tabs para escolher método de cadastro */}
+                    <div className="flex border-b mb-6">
+                        <button
+                            type="button"
+                            onClick={() => setRegistrationMethod('google')}
+                            className={`flex-1 py-2 text-center font-medium transition-colors ${
+                                registrationMethod === 'google'
+                                    ? 'border-b-2 border-blue-600 text-blue-600'
+                                    : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            Google
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setRegistrationMethod('email')}
+                            className={`flex-1 py-2 text-center font-medium transition-colors ${
+                                registrationMethod === 'email'
+                                    ? 'border-b-2 border-blue-600 text-blue-600'
+                                    : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            Email e Senha
+                        </button>
+                    </div>
+
+                    {registrationMethod === 'google' ? (
+                        <div className="text-center">
+                            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Comece com um clique</h2>
+                            <p className="text-gray-600 mb-6">Use sua conta Google para um cadastro rápido e seguro.</p>
+                            <Button onClick={handleGoogleSignIn} variant="outline" className="w-full text-lg py-6" disabled={loading}>
+                                {loading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                        Aguarde...
+                                    </>
+                                ) : (
+                                    <>
+                                        <GoogleIcon />
+                                        Cadastrar-se com Google
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleEmailSignUp} className="space-y-4">
+                            <h2 className="text-2xl font-semibold text-gray-800 mb-4 text-center">Criar conta com Email</h2>
+                            
+                            <div>
+                                <Label htmlFor="signup-name">Nome (opcional)</Label>
+                                <Input 
+                                    id="signup-name"
+                                    type="text"
+                                    value={emailData.name}
+                                    onChange={(e) => setEmailData({...emailData, name: e.target.value})}
+                                    placeholder="Seu nome completo"
+                                />
+                            </div>
+
+                            <div>
+                                <Label htmlFor="signup-email">Email *</Label>
+                                <Input 
+                                    id="signup-email"
+                                    type="email"
+                                    value={emailData.email}
+                                    onChange={(e) => setEmailData({...emailData, email: e.target.value})}
+                                    placeholder="seu@email.com"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <Label htmlFor="signup-password">Senha *</Label>
+                                <Input 
+                                    id="signup-password"
+                                    type="password"
+                                    value={emailData.password}
+                                    onChange={(e) => setEmailData({...emailData, password: e.target.value})}
+                                    placeholder="Mínimo 6 caracteres"
+                                    required
+                                    minLength={6}
+                                />
+                            </div>
+
+                            <div>
+                                <Label htmlFor="signup-confirm-password">Confirmar Senha *</Label>
+                                <Input 
+                                    id="signup-confirm-password"
+                                    type="password"
+                                    value={emailData.confirmPassword}
+                                    onChange={(e) => setEmailData({...emailData, confirmPassword: e.target.value})}
+                                    placeholder="Digite a senha novamente"
+                                    required
+                                    minLength={6}
+                                />
+                            </div>
+
+                            <Button type="submit" className="w-full text-lg py-6" disabled={emailLoading}>
+                                {emailLoading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                        Criando conta...
+                                    </>
+                                ) : (
+                                    <>
+                                        <UserPlus className="mr-2 h-5 w-5" />
+                                        Criar Conta
+                                    </>
+                                )}
+                            </Button>
+                        </form>
+                    )}
+
+                    <p className="text-xs text-gray-500 mt-6 text-center">Ao continuar, você concorda com nossos <a href="/termos" className="underline">Termos de Serviço</a> e <a href="/privacidade" className="underline">Política de Privacidade</a>.</p>
+                </div>
             </div>
         </div>
     );

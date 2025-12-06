@@ -205,7 +205,10 @@ import React from 'react';
 
               <Route path="/" element={<MaintenanceGuard><AppLayout /></MaintenanceGuard>}>
                 <Route index element={<Home />} />
-                <Route path="/painel-assinante" element={<RoleGuard requiredRoles={['subscriber']}><SubscriberPage /></RoleGuard>} />
+                {/* URL principal do painel do assinante (em inglês) */}
+                <Route path="/subscriber-area" element={<RoleGuard requiredRoles={['subscriber']}><SubscriberPage /></RoleGuard>} />
+                {/* Alias em português - redireciona para /subscriber-area para garantir consistência */}
+                <Route path="/painel-assinante" element={<Navigate to="/subscriber-area" replace />} />
                 <Route path="/editar-perfil" element={<RoleGuard requiredRoles={['subscriber']}><EditSubscriberProfile /></RoleGuard>} />
                 <Route path="/dashboard/loja" element={<RoleGuard requiredRoles={['master', 'general_admin', 'subscriber']}><StoreDashboard /></RoleGuard>} />
                 <Route path="/guia-comercial" element={<Companies />} />

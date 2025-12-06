@@ -17,14 +17,17 @@ const SubscriberPage = () => {
     const navigate = useNavigate();
     const { toast } = useToast();
     const [subscriber, setSubscriber] = useState(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const loadSubscriber = async () => {
             if (!user) {
                 setSubscriber(null);
+                setLoading(false);
                 return;
             }
 
+            setLoading(true);
             try {
                 // Buscar assinante por user_id primeiro
                 let subscriber = await subscriberService.getSubscriberByUserId(user.id);
@@ -91,8 +94,10 @@ const SubscriberPage = () => {
                 toast({
                     variant: "destructive",
                     title: "Erro ao carregar dados",
-                    description: "Não foi possível carregar suas informações. Tente novamente.",
+                    description: "Não foi possível carregar suas informações. Tente recarregar a página.",
                 });
+            } finally {
+                setLoading(false);
             }
         };
 
@@ -101,7 +106,10 @@ const SubscriberPage = () => {
 
     const handleSignOut = async () => {
         await signOut();
-        toast({ title: 'Logout efetuado com sucesso!' });
+        toast({ 
+            variant: "success",
+            title: 'Logout efetuado com sucesso!' 
+        });
         navigate('/');
     };
 
@@ -112,23 +120,23 @@ const SubscriberPage = () => {
         });
     };
 
-    if (!user) {
+    if (!user || loading) {
         return (
             <div className="flex justify-center items-center h-screen">
                 <div className="text-center">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
-                    <p className="text-gray-600">Carregando...</p>
+                    <p className="text-gray-600">{!user ? 'Carregando...' : 'Carregando seus dados...'}</p>
                 </div>
             </div>
         );
     }
 
-    if (!subscriber) {
+    if (!subscriber && !loading) {
         return (
             <div className="flex justify-center items-center h-screen">
                 <div className="text-center">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
-                    <p className="text-gray-600">Carregando seus dados...</p>
+                    <p className="text-gray-600">Criando seu perfil...</p>
                 </div>
             </div>
         );
