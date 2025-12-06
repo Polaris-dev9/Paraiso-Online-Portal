@@ -132,10 +132,38 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
             return { data, error };
         };
 
+        const signUp = async (email, password, metadata = {}) => {
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: metadata,
+                    emailRedirectTo: `${window.location.origin}/subscriber-area`
+                }
+            });
+            if (error) {
+                await logToAudit('signup_failed', { email, error: error.message });
+            } else if (data?.user) {
+                await logToAudit('user_signed_up', { email, userId: data.user.id });
+            }
+            return { data, error };
+        };
+
+        const resendConfirmationEmail = async (email) => {
+            const { error } = await supabase.auth.resend({
+                type: 'signup',
+                email: email
+            });
+            if (error) {
+                console.error('Error resending confirmation email:', error);
+            }
+            return { error };
+        };
+
         const signInWithGoogle = async () => {
             // Usar o domínio atual (localhost em dev, produção em prod)
             const currentOrigin = window.location.origin;
-            const redirectTo = `${currentOrigin}/area-do-assinante`;
+            const redirectTo = `${currentOrigin}/subscriber-area`;
             
             console.log('[SupabaseAuth] ===== GOOGLE LOGIN START =====');
             console.log('[SupabaseAuth] Current URL:', window.location.href);
@@ -178,7 +206,9 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
             loading,
             signInWithPassword,
             signInWithGoogle,
+            signUp,
             signOut,
+            resendConfirmationEmail,
         };
 
         return <SupabaseAuthContext.Provider value={value}>{children}</SupabaseAuthContext.Provider>;

@@ -18,7 +18,7 @@ const GoogleIcon = () => (
 );
 
 const UserLogin = () => {
-    const { signInWithPassword, signInWithGoogle, user: supabaseUser } = useSupabaseAuth();
+    const { signInWithPassword, signInWithGoogle, user: supabaseUser, resendConfirmationEmail } = useSupabaseAuth();
     const { login: adminLogin } = useAuth();
     const { toast } = useToast();
     const navigate = useNavigate();
@@ -27,12 +27,12 @@ const UserLogin = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [isEmailNotConfirmed, setIsEmailNotConfirmed] = useState(false);
+    const [resendingEmail, setResendingEmail] = useState(false);
 
-    useEffect(() => {
-        if (supabaseUser) {
-            navigate('/painel-assinante');
-        }
-    }, [supabaseUser, navigate]);
+    // Não redirecionar automaticamente - deixar o usuário fazer login manualmente
+    // Se já estiver logado, o RoleGuard em outras rotas protegerá
+    // Este componente deve SEMPRE mostrar a tela de login
 
     const handleGoogleSignIn = async () => {
         setLoading(true);
@@ -51,7 +51,11 @@ const UserLogin = () => {
         
         const adminUser = adminLogin(email, password);
         if (adminUser) {
-            toast({ title: "Login administrativo bem-sucedido!", description: "Redirecionando para o painel..." });
+            toast({ 
+                variant: "success",
+                title: "Login administrativo bem-sucedido!", 
+                description: "Redirecionando para o painel..." 
+            });
             navigate('/admin/dashboard');
             return;
         }
@@ -60,18 +64,80 @@ const UserLogin = () => {
         if (supabaseError) {
             handleLoginError(supabaseError);
         } else {
-            toast({ title: "Login bem-sucedido!", description: "Bem-vindo(a) de volta!" });
-            navigate('/painel-assinante');
+            toast({ 
+                variant: "success",
+                title: "Login bem-sucedido!", 
+                description: "Bem-vindo(a) de volta!" 
+            });
+            navigate('/subscriber-area');
         }
         setLoading(false);
     };
 
     const handleLoginError = (e) => {
         console.error("Login Error:", e);
-        const friendlyMessage = "Não foi possível autenticar. Verifique suas credenciais ou tente novamente.";
+        
+        // Verificar se é erro de email não confirmado
+        let friendlyMessage = "Não foi possível autenticar. Verifique suas credenciais ou tente novamente.";
+        let errorTitle = "Erro no Login";
+        const isEmailNotConfirmedError = e?.message?.toLowerCase().includes('email_not_confirmed') || 
+                                         e?.error_code === 'email_not_confirmed' ||
+                                         e?.code === 'email_not_confirmed';
+        
+        if (isEmailNotConfirmedError) {
+            friendlyMessage = "Seu email ainda não foi confirmado. Verifique sua caixa de entrada (e a pasta de spam) e clique no link de confirmação.";
+            errorTitle = "Email Não Confirmado";
+            setIsEmailNotConfirmed(true);
+        } else if (e?.message?.toLowerCase().includes('invalid login') || 
+                   e?.message?.toLowerCase().includes('invalid credentials')) {
+            friendlyMessage = "Email ou senha incorretos. Verifique suas credenciais e tente novamente.";
+            errorTitle = "Credenciais Inválidas";
+            setIsEmailNotConfirmed(false);
+        } else {
+            setIsEmailNotConfirmed(false);
+        }
+        
         setError(friendlyMessage);
-        toast({ variant: "destructive", title: "Erro no Login", description: friendlyMessage });
+        toast({ 
+            variant: "destructive", 
+            title: errorTitle, 
+            description: friendlyMessage,
+            duration: 8000 // Mostrar por mais tempo para mensagens importantes
+        });
         setLoading(false);
+    };
+
+    const handleResendConfirmation = async () => {
+        if (!email) {
+            toast({
+                variant: "destructive",
+                title: "Email necessário",
+                description: "Por favor, preencha o campo de email primeiro.",
+            });
+            return;
+        }
+
+        setResendingEmail(true);
+        try {
+            const { error } = await resendConfirmationEmail(email);
+            if (error) {
+                throw error;
+            }
+            toast({
+                variant: "success",
+                title: "✅ Email reenviado!",
+                description: "Verifique sua caixa de entrada e clique no link de confirmação.",
+            });
+        } catch (error) {
+            console.error("Error resending confirmation:", error);
+            toast({
+                variant: "destructive",
+                title: "Erro ao reenviar",
+                description: error.message || "Não foi possível reenviar o email de confirmação.",
+            });
+        } finally {
+            setResendingEmail(false);
+        }
     };
 
     return (
@@ -92,7 +158,30 @@ const UserLogin = () => {
                                 <CardTitle className="text-2xl font-bold text-blue-900">Acesse sua Conta</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                {error && <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 text-sm" role="alert"><p>{error}</p></div>}
+                                {error && (
+                                    <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 text-sm rounded" role="alert">
+                                        <p className="mb-2">{error}</p>
+                                        {isEmailNotConfirmed && (
+                                            <Button 
+                                                type="button"
+                                                variant="outline" 
+                                                size="sm" 
+                                                onClick={handleResendConfirmation}
+                                                disabled={resendingEmail}
+                                                className="w-full mt-2"
+                                            >
+                                                {resendingEmail ? (
+                                                    <>
+                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        Reenviando...
+                                                    </>
+                                                ) : (
+                                                    "📧 Reenviar Email de Confirmação"
+                                                )}
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
                                 <form onSubmit={handleEmailLogin} className="space-y-4">
                                     <div>
                                         <Label htmlFor="email">E-mail</Label>

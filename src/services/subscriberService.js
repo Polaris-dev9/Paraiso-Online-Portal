@@ -135,18 +135,23 @@ export const subscriberService = {
         .from('subscribers')
         .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle(); // Usa maybeSingle para evitar erro 406 quando não encontra
 
       if (error) {
-        // PGRST116 = no rows returned
+        // PGRST116 = no rows returned (não é um erro real, apenas não encontrou)
         if (error.code === 'PGRST116') {
           return null;
         }
+        console.error('Error fetching subscriber by user_id:', error);
         throw error;
       }
-      return data;
+      return data || null;
     } catch (error) {
       console.error('Error fetching subscriber by user_id:', error);
+      // Se for erro 406, significa que não encontrou - retornar null
+      if (error.code === 'PGRST116' || error.message?.includes('Cannot coerce')) {
+        return null;
+      }
       throw new Error('Erro ao buscar assinante: ' + error.message);
     }
   },
