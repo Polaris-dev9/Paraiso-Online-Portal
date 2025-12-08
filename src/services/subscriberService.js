@@ -80,6 +80,7 @@ export const subscriberService = {
         business_hours: subscriberData.business_hours || {},
         banner_image_url: subscriberData.banner_image_url || null,
         profile_image_url: subscriberData.profile_image_url || null,
+        category_id: subscriberData.category_id || null,
         slug: slug
       };
 
@@ -222,6 +223,16 @@ export const subscriberService = {
           .replace(/^-+|-+$/g, '');
       }
 
+      // Log para debug
+      console.log('[subscriberService] Updating subscriber:', {
+        id,
+        updates: {
+          ...updates,
+          profile_image_url: updates.profile_image_url ? `${updates.profile_image_url.substring(0, 50)}...` : null,
+          banner_image_url: updates.banner_image_url ? `${updates.banner_image_url.substring(0, 50)}...` : null
+        }
+      });
+
       const { data, error } = await supabase
         .from('subscribers')
         .update(updates)
@@ -229,7 +240,18 @@ export const subscriberService = {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[subscriberService] Error updating subscriber:', error);
+        throw error;
+      }
+
+      // Log do resultado
+      console.log('[subscriberService] Subscriber updated successfully:', {
+        id: data?.id,
+        profile_image_url: data?.profile_image_url ? `${data.profile_image_url.substring(0, 50)}...` : null,
+        banner_image_url: data?.banner_image_url ? `${data.banner_image_url.substring(0, 50)}...` : null
+      });
+
       return data;
     } catch (error) {
       console.error('Error updating subscriber:', error);
