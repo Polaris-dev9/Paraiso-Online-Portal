@@ -15,6 +15,8 @@ import { cepService } from '@/services/cepService';
 import { categoryService } from '@/services/categoryService';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
+import ImageUpload from '@/components/common/ImageUpload';
+import imageService from '@/services/imageService';
 
 const EditSubscriberProfile = () => {
     const { toast } = useToast();
@@ -25,8 +27,12 @@ const EditSubscriberProfile = () => {
     const [loadingData, setLoadingData] = useState(true);
     const [logoFile, setLogoFile] = useState(null);
     const [logoName, setLogoName] = useState('');
+    const [logoImageUrl, setLogoImageUrl] = useState(null);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
     const [categories, setCategories] = useState([]);
     const [subscriber, setSubscriber] = useState(null);
+    const [profileImageUrl, setProfileImageUrl] = useState(null);
+    const [bannerImageUrl, setBannerImageUrl] = useState(null);
     
     const [formData, setFormData] = useState({
         name: '',
@@ -67,8 +73,31 @@ const EditSubscriberProfile = () => {
                 setLoadingData(true);
                 
                 // Buscar assinante
-                let subscriberData = await subscriberService.getSubscriberByUserId(user.id);
+                // Primeiro, tentar usar a função RPC se existir (bypass PostgREST cache)
+                let subscriberData;
+                let rpcError = null;
                 
+                try {
+                    const { data: rpcData, error: rpcErr } = await supabase
+                        .rpc('get_subscriber_by_user_id', { p_user_id: user.id });
+                    
+                    if (rpcData && !rpcErr) {
+                        // Converter JSON retornado pela RPC em objeto
+                        subscriberData = typeof rpcData === 'string' ? JSON.parse(rpcData) : rpcData;
+                        console.log('[EditProfile] Subscriber loaded via RPC:', !!subscriberData?.category_id);
+                    } else {
+                        rpcError = rpcErr;
+                    }
+                } catch (err) {
+                    console.log('[EditProfile] RPC function not available, using fallback:', err.message);
+                }
+                
+                // Fallback: usar query normal se RPC não funcionar
+                if (!subscriberData) {
+                    subscriberData = await subscriberService.getSubscriberByUserId(user.id);
+                }
+                
+                // Fallback adicional: buscar por email se ainda não encontrou
                 if (!subscriberData && user.email) {
                     const { data } = await supabase
                         .from('subscribers')
@@ -119,14 +148,25 @@ const EditSubscriberProfile = () => {
 
                 setSubscriber(subscriberData);
 
+                // Debug: verificar se category_id está presente
+                console.log('[EditProfile] Subscriber data loaded:', {
+                    hasCategoryId: !!subscriberData.category_id,
+                    categoryId: subscriberData.category_id,
+                    subscriberId: subscriberData.id
+                });
+
                 // Preencher formulário com dados existentes
                 const address = subscriberData.address || {};
+                const categoryValue = subscriberData.category_id ? String(subscriberData.category_id) : '';
+                
+                console.log('[EditProfile] Setting form data with category:', categoryValue);
+                
                 setFormData({
                     name: subscriberData.name || '',
                     email: subscriberData.email || user.email || '',
                     phone: subscriberData.phone || '',
                     cpfCnpj: subscriberData.cpf_cnpj || '',
-                    category: subscriberData.category_id || '',
+                    category: categoryValue,
                     cep: address.cep ? cepService.formatCep(address.cep) : '',
                     street: address.street || '',
                     number: address.number || '',
@@ -136,6 +176,34 @@ const EditSubscriberProfile = () => {
                     state: address.state || '',
                     description: subscriberData.description || ''
                 });
+
+                // Carregar URLs das imagens existentes
+                const profileUrl = subscriberData.profile_image_url || null;
+                const bannerUrl = subscriberData.banner_image_url || null;
+                const logoUrl = subscriberData.logo_url || subscriberData.logo_image_url || null;
+                
+                console.log('[EditProfile] Loading existing images:', {
+                    profile_image_url: profileUrl,
+                    banner_image_url: bannerUrl,
+                    logo_url: logoUrl,
+                    hasProfile: !!profileUrl,
+                    hasBanner: !!bannerUrl,
+                    hasLogo: !!logoUrl
+                });
+                
+                // Setar as URLs de imagem
+                setProfileImageUrl(profileUrl);
+                setBannerImageUrl(bannerUrl);
+                setLogoImageUrl(logoUrl);
+                
+                // Se há logo URL, extrair o nome do arquivo para exibir
+                if (logoUrl) {
+                    const logoFileName = logoUrl.split('/').pop().split('?')[0] || 'logotipo.png';
+                    setLogoName(logoFileName);
+                }
+                
+                // Log após setar
+                console.log('[EditProfile] Image URLs set in state');
 
                 // Carregar categorias
                 const cats = await categoryService.getCategoriesByType('commercial');
@@ -148,7 +216,7 @@ const EditSubscriberProfile = () => {
                     title: "Erro ao carregar dados",
                     description: "Não foi possível carregar suas informações.",
                 });
-                navigate('/area-do-assinante');
+                                navigate('/subscriber-area');
             } finally {
                 setLoadingData(false);
             }
@@ -207,10 +275,45 @@ const EditSubscriberProfile = () => {
         }
     };
 
-    const handleLogoChange = (e) => {
-        if (e.target.files && e.target.files[0]) {
-            setLogoFile(e.target.files[0]);
-            setLogoName(e.target.files[0].name);
+    const handleLogoChange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validar arquivo
+        const validation = imageService.validateImage(file);
+        if (!validation.valid) {
+            toast({
+                variant: "destructive",
+                title: "Erro",
+                description: validation.error,
+            });
+            return;
+        }
+
+        setLogoFile(file);
+        setLogoName(file.name);
+        setUploadingLogo(true);
+
+        try {
+            // Fazer upload da imagem
+            const result = await imageService.uploadImage(file, 'subscribers', user.id, 'logo');
+            
+            console.log('[EditProfile] Logo uploaded successfully:', result);
+            
+            setLogoImageUrl(result.url);
+            
+            // Toast removido - upload silencioso
+        } catch (error) {
+            console.error('[EditProfile] Error uploading logo:', error);
+            toast({
+                variant: "destructive",
+                title: "Erro ao enviar logotipo",
+                description: error.message || "Tente novamente.",
+            });
+            setLogoFile(null);
+            setLogoName('');
+        } finally {
+            setUploadingLogo(false);
         }
     };
 
@@ -228,36 +331,111 @@ const EditSubscriberProfile = () => {
 
         setLoading(true);
 
-        try {
-            const address = {
-                cep: formData.cep.replace(/\D/g, ''),
-                street: formData.street,
-                number: formData.number,
-                complement: formData.complement || '',
-                neighborhood: formData.neighborhood,
-                city: formData.city,
-                state: formData.state
-            };
+        // Preparar dados de endereço (fora do try para estar disponível no catch)
+        const address = {
+            cep: formData.cep.replace(/\D/g, ''),
+            street: formData.street,
+            number: formData.number,
+            complement: formData.complement || '',
+            neighborhood: formData.neighborhood,
+            city: formData.city,
+            state: formData.state
+        };
 
+        try {
+            // Log das imagens antes de salvar
+            console.log('[EditProfile] Saving with images:', {
+                profileImageUrl,
+                bannerImageUrl,
+                subscriberId: subscriber.id
+            });
+
+            // Sempre salvar SEM category_id e logo_url primeiro (evita erro de schema cache)
             const updateData = {
                 name: formData.name.trim(),
                 phone: formData.phone.replace(/\D/g, ''),
                 cpf_cnpj: formData.cpfCnpj.replace(/\D/g, '') || null,
                 address: address,
                 description: formData.description.trim() || null,
-                // category_id: formData.category // Se a tabela tiver essa coluna
+                profile_image_url: profileImageUrl || null,
+                banner_image_url: bannerImageUrl || null
+                // logo_url será salvo via RPC separadamente
             };
 
-            await subscriberService.updateSubscriber(subscriber.id, updateData);
+            console.log('[EditProfile] Update data to save:', updateData);
 
+            const result = await subscriberService.updateSubscriber(subscriber.id, updateData);
+            console.log('[EditProfile] Subscriber updated:', result);
+
+            // Atualizar logo_url separadamente usando função RPC (bypass PostgREST cache)
+            if (logoImageUrl) {
+                try {
+                    console.log('[EditProfile] Attempting to update logo_url via RPC:', {
+                        subscriber_id: subscriber.id,
+                        logo_url: logoImageUrl
+                    });
+                    
+                    const { data: logoRpcData, error: logoError } = await supabase.rpc('update_subscriber_logo_url', {
+                        p_subscriber_id: subscriber.id,
+                        p_logo_url: logoImageUrl
+                    });
+                    
+                    console.log('[EditProfile] Logo RPC response:', { logoRpcData, logoError });
+                    
+                    if (!logoError) {
+                        console.log('[EditProfile] Logo URL updated successfully via RPC');
+                    } else {
+                        console.error('[EditProfile] Error updating logo_url via RPC:', logoError);
+                    }
+                } catch (logoRpcError) {
+                    console.error('[EditProfile] Exception calling update_subscriber_logo_url RPC:', logoRpcError);
+                }
+            }
+
+            // Atualizar category_id separadamente usando função RPC (bypass PostgREST cache)
+            if (formData.category) {
+                try {
+                    console.log('[EditProfile] Attempting to update category via RPC:', {
+                        subscriber_id: subscriber.id,
+                        category_id: formData.category
+                    });
+                    
+                    const { data: rpcData, error: categoryError } = await supabase.rpc('update_subscriber_category', {
+                        subscriber_id: subscriber.id,
+                        category_id_value: formData.category
+                    });
+                    
+                    console.log('[EditProfile] RPC response:', { rpcData, categoryError });
+                    
+                    if (!categoryError) {
+                        console.log('[EditProfile] Category updated successfully via RPC');
+                        toast({
+                            variant: "success",
+                            title: "✅ Perfil atualizado com sucesso!",
+                            description: "Todas as suas informações, incluindo a categoria, foram salvas.",
+                        });
+                        navigate('/subscriber-area', { replace: true });
+                        return;
+                    } else {
+                        console.error('[EditProfile] Error updating category via RPC:', categoryError);
+                        // Continuar para mostrar mensagem de sucesso parcial
+                    }
+                } catch (rpcError) {
+                    console.error('[EditProfile] Exception calling update_subscriber_category RPC:', rpcError);
+                    // Continuar para mostrar mensagem de sucesso parcial
+                }
+            }
+
+            // Se não há categoria ou houve erro ao salvar categoria
             toast({
                 variant: "success",
-                title: "✅ Perfil atualizado com sucesso!",
-                description: "Suas informações foram salvas.",
+                title: "✅ Perfil atualizado!",
+                description: formData.category 
+                    ? "Suas informações foram salvas. A categoria será salva quando o sistema estiver atualizado (aguarde alguns minutos e tente novamente)."
+                    : "Suas informações foram salvas.",
             });
 
             // Após salvar o perfil, levar o usuário para a área do assinante
-            // Rota em inglês para compatibilidade com requisitos do cliente
             navigate('/subscriber-area', { replace: true });
 
         } catch (error) {
@@ -300,7 +478,7 @@ const EditSubscriberProfile = () => {
                 >
                     <Button 
                         variant="ghost" 
-                        onClick={() => navigate('/area-do-assinante')}
+                        onClick={() => navigate('/subscriber-area')}
                         className="mb-4"
                     >
                         <ArrowLeft className="mr-2 h-4 w-4" />
@@ -340,7 +518,7 @@ const EditSubscriberProfile = () => {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {categories.map(cat => (
-                                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                            <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -392,6 +570,45 @@ const EditSubscriberProfile = () => {
                                     rows={4}
                                 />
                             </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Seção de Imagens */}
+                    <Card className="shadow-lg mt-6">
+                        <CardHeader>
+                            <CardTitle className="text-2xl text-blue-800 flex items-center">
+                                <FileUp className="mr-2" />
+                                Imagens do Perfil
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            {user && (
+                                <>
+                                    <ImageUpload
+                                        label="Logo / Foto de Perfil"
+                                        imageType="profile"
+                                        userId={user.id}
+                                        currentImageUrl={profileImageUrl}
+                                        onImageChange={(url, path) => {
+                                            console.log('[EditProfile] Profile image changed:', { url, path });
+                                            setProfileImageUrl(url);
+                                        }}
+                                        maxSizeMB={5}
+                                    />
+
+                                    <ImageUpload
+                                        label="Banner"
+                                        imageType="banner"
+                                        userId={user.id}
+                                        currentImageUrl={bannerImageUrl}
+                                        onImageChange={(url, path) => {
+                                            console.log('[EditProfile] Banner image changed:', { url, path });
+                                            setBannerImageUrl(url);
+                                        }}
+                                        maxSizeMB={5}
+                                    />
+                                </>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -512,17 +729,27 @@ const EditSubscriberProfile = () => {
                                         id="logo" 
                                         accept="image/*"
                                         className="absolute w-full h-full opacity-0 cursor-pointer" 
-                                        onChange={handleLogoChange} 
+                                        onChange={handleLogoChange}
+                                        disabled={uploadingLogo}
                                     />
-                                    <div className="flex items-center justify-center w-full h-11 px-3 py-2 text-sm border rounded-md cursor-pointer bg-gray-50 hover:bg-gray-100">
-                                        <FileUp className="mr-2 h-4 w-4 text-gray-500" />
-                                        <span className="text-gray-600 truncate">
-                                            {logoName || 'Clique para enviar o logotipo'}
-                                        </span>
+                                    <div className="flex items-center justify-center w-full h-11 px-3 py-2 text-sm border rounded-md cursor-pointer bg-gray-50 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        {uploadingLogo ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 text-gray-500 animate-spin" />
+                                                <span className="text-gray-600">Enviando...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <FileUp className="mr-2 h-4 w-4 text-gray-500" />
+                                                <span className="text-gray-600 truncate">
+                                                    {logoName || 'Clique para enviar o logotipo'}
+                                                </span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                                 <p className="text-xs text-gray-500 mt-1">
-                                    Upload de imagens será implementado em breve
+                                    Formatos aceitos: JPG, PNG, WEBP, GIF. Tamanho máximo: 5MB
                                 </p>
                             </div>
                         </CardContent>
@@ -532,7 +759,7 @@ const EditSubscriberProfile = () => {
                         <Button 
                             type="button" 
                             variant="outline" 
-                            onClick={() => navigate('/area-do-assinante')}
+                            onClick={() => navigate('/subscriber-area')}
                         >
                             Cancelar
                         </Button>
@@ -562,3 +789,4 @@ const EditSubscriberProfile = () => {
 };
 
 export default EditSubscriberProfile;
+
