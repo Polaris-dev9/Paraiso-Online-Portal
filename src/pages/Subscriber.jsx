@@ -217,7 +217,7 @@ const SubscriberPage = () => {
                             <CardContent className="flex-grow"><p className="text-gray-700">Atualize suas informações de contato, fotos, descrição e horário de funcionamento.</p></CardContent>
                         </Card>
                     </motion.div>
-                     <motion.div whileHover={{ scale: 1.05 }} onClick={() => handleToast('Relatórios de Desempenho')}>
+                     <motion.div whileHover={{ scale: 1.05 }} onClick={() => navigate('/relatorios-desempenho')}>
                         <Card className="cursor-pointer bg-white border-gray-400 h-full flex flex-col">
                             <CardHeader><CardTitle className="flex items-center text-gray-900"><BarChart2 className="mr-3" /> Relatórios de Desempenho</CardTitle></CardHeader>
                             <CardContent className="flex-grow"><p className="text-gray-700">Veja quantas pessoas visualizaram sua página, seus produtos e entraram em contato.</p></CardContent>

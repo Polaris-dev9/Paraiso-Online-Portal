@@ -62,6 +62,7 @@ import React from 'react';
     import SubscribeNow from '@/pages/SubscribeNow';
     import RegisterCompany from '@/pages/RegisterCompany';
     import EditSubscriberProfile from '@/pages/EditSubscriberProfile';
+    import SubscriberReports from '@/pages/SubscriberReports';
     import AdminHeader from '@/components/admin/AdminHeader';
 
     import AdminLogin from '@/pages/admin/AdminLogin';
@@ -210,6 +211,7 @@ import React from 'react';
                 {/* Alias em português - redireciona para /subscriber-area para garantir consistência */}
                 <Route path="/painel-assinante" element={<Navigate to="/subscriber-area" replace />} />
                 <Route path="/editar-perfil" element={<RoleGuard requiredRoles={['subscriber']}><EditSubscriberProfile /></RoleGuard>} />
+                <Route path="/relatorios-desempenho" element={<RoleGuard requiredRoles={['subscriber']}><SubscriberReports /></RoleGuard>} />
                 <Route path="/dashboard/loja" element={<RoleGuard requiredRoles={['master', 'general_admin', 'subscriber']}><StoreDashboard /></RoleGuard>} />
                 <Route path="/guia-comercial" element={<Companies />} />
                 <Route path="/guia-comercial/:slug" element={<PartnerPage />} />
