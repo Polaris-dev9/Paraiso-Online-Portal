@@ -317,19 +317,34 @@ export const subscriberService = {
         subscriber_id: id
       });
 
-      // Se a função não existir, fazer update manual
-      if (error && error.message.includes('function')) {
-        const { data: subscriber } = await this.getSubscriberById(id);
-        await this.updateSubscriber(id, {
-          views_count: (subscriber?.views_count || 0) + 1
-        });
-        return;
+      // Se a função não existir ou der erro, fazer update manual (fallback)
+      if (error) {
+        if (error.code === 'PGRST202' || error.message?.includes('function') || error.message?.includes('not found')) {
+          console.log('[subscriberService] RPC function not found, using fallback update');
+          const { data: subscriber } = await this.getSubscriberById(id);
+          if (subscriber) {
+            await this.updateSubscriber(id, {
+              views_count: (subscriber?.views_count || 0) + 1
+            });
+          }
+          return;
+        }
+        throw error;
       }
-
-      if (error) throw error;
     } catch (error) {
-      console.error('Error incrementing views:', error);
-      // Não lançar erro, apenas logar (não é crítico)
+      console.error('[subscriberService] Error incrementing views:', error);
+      // Tentar fallback mesmo se houver outro erro
+      try {
+        const { data: subscriber } = await this.getSubscriberById(id);
+        if (subscriber) {
+          await this.updateSubscriber(id, {
+            views_count: (subscriber?.views_count || 0) + 1
+          });
+        }
+      } catch (fallbackError) {
+        console.error('[subscriberService] Fallback also failed:', fallbackError);
+        // Não lançar erro, apenas logar (não é crítico)
+      }
     }
   },
 

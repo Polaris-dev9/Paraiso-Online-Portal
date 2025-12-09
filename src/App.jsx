@@ -63,6 +63,7 @@ import React from 'react';
     import RegisterCompany from '@/pages/RegisterCompany';
     import EditSubscriberProfile from '@/pages/EditSubscriberProfile';
     import SubscriberReports from '@/pages/SubscriberReports';
+    import SubscriberPublicPage from '@/pages/SubscriberPublicPage';
     import AdminHeader from '@/components/admin/AdminHeader';
 
     import AdminLogin from '@/pages/admin/AdminLogin';
@@ -215,6 +216,7 @@ import React from 'react';
                 <Route path="/dashboard/loja" element={<RoleGuard requiredRoles={['master', 'general_admin', 'subscriber']}><StoreDashboard /></RoleGuard>} />
                 <Route path="/guia-comercial" element={<Companies />} />
                 <Route path="/guia-comercial/:slug" element={<PartnerPage />} />
+                <Route path="/empresa/:slug" element={<SubscriberPublicPage />} />
                 <Route path="/guia-profissional" element={<Professionals />} />
                 <Route path="/guia-profissional/:slug" element={<ProfessionalProfilePage />} />
                 <Route path="/personalidade/:slug" element={<PublicFigurePage />} />

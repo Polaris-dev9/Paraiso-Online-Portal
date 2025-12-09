@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Edit, BarChart2, Star, Info, ShieldCheck, LogOut, ShoppingBag, ArrowRight } from 'lucide-react';
+import { User, Edit, BarChart2, Star, Info, ShieldCheck, LogOut, ShoppingBag, ArrowRight, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
@@ -223,6 +223,48 @@ const SubscriberPage = () => {
                             <CardContent className="flex-grow"><p className="text-gray-700">Veja quantas pessoas visualizaram sua página, seus produtos e entraram em contato.</p></CardContent>
                         </Card>
                     </motion.div>
+                    {subscriber.slug ? (
+                        <motion.div whileHover={{ scale: 1.05 }}>
+                            <a 
+                                href={`/empresa/${subscriber.slug}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="block h-full"
+                            >
+                                <Card className="cursor-pointer bg-green-600 text-white hover:bg-green-700 transition-colors h-full flex flex-col">
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center">
+                                            <ExternalLink className="mr-3" /> Ver Minha Página Pública
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="flex-grow">
+                                        <p>Veja como sua página aparece para os visitantes. Compartilhe seu link com clientes!</p>
+                                    </CardContent>
+                                    <CardContent>
+                                        <p className="text-sm opacity-90 mt-2">Abre em nova aba</p>
+                                    </CardContent>
+                                </Card>
+                            </a>
+                        </motion.div>
+                    ) : (
+                        <motion.div whileHover={{ scale: 1.05 }} onClick={() => navigate('/editar-perfil')}>
+                            <Card className="cursor-pointer bg-gray-100 border-gray-300 h-full flex flex-col opacity-75">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center text-gray-600">
+                                        <ExternalLink className="mr-3" /> Página Pública
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="flex-grow">
+                                    <p className="text-gray-600">
+                                        Salve seu perfil primeiro para gerar sua página pública e compartilhar com clientes.
+                                    </p>
+                                </CardContent>
+                                <CardContent>
+                                    <p className="text-sm text-gray-500">Clique para editar perfil</p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    )}
                 </div>
             </motion.div>
         </div>
