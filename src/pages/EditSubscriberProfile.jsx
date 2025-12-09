@@ -350,6 +350,31 @@ const EditSubscriberProfile = () => {
                 subscriberId: subscriber.id
             });
 
+            // Gerar slug baseado no nome (se mudou)
+            let slug = subscriber.slug;
+            if (formData.name.trim() !== subscriber.name) {
+                slug = formData.name.trim()
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-+|-+$/g, '');
+                
+                // Verificar se slug já existe (outro assinante)
+                if (slug) {
+                    const { data: existing } = await supabase
+                        .from('subscribers')
+                        .select('id')
+                        .eq('slug', slug)
+                        .neq('id', subscriber.id)
+                        .maybeSingle();
+                    
+                    if (existing) {
+                        slug = `${slug}-${Date.now()}`;
+                    }
+                }
+            }
+
             // Sempre salvar SEM category_id e logo_url primeiro (evita erro de schema cache)
             const updateData = {
                 name: formData.name.trim(),
@@ -358,7 +383,8 @@ const EditSubscriberProfile = () => {
                 address: address,
                 description: formData.description.trim() || null,
                 profile_image_url: profileImageUrl || null,
-                banner_image_url: bannerImageUrl || null
+                banner_image_url: bannerImageUrl || null,
+                slug: slug || subscriber.slug
                 // logo_url será salvo via RPC separadamente
             };
 
