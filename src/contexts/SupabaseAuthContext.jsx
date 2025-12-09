@@ -192,6 +192,31 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
             console.log('[SupabaseAuth] ===== GOOGLE LOGIN END =====');
         };
 
+        const resetPasswordForEmail = async (email) => {
+            console.log('[SupabaseAuth] resetPasswordForEmail called with email:', email);
+            console.log('[SupabaseAuth] redirectTo will be:', `${window.location.origin}/reset-password`);
+            
+            const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password`,
+                // Adicionar opções adicionais para garantir que o email seja enviado
+                captchaToken: undefined, // Não usar captcha por enquanto
+            });
+            
+            if (error) {
+                console.error('[SupabaseAuth] Error sending password reset email:', {
+                    message: error.message,
+                    status: error.status,
+                    code: error.code,
+                    name: error.name,
+                    error: error
+                });
+            } else {
+                console.log('[SupabaseAuth] Password reset email sent successfully:', data);
+            }
+            
+            return { data, error };
+        };
+
         const signOut = async () => {
             const userIdBeforeSignOut = user?.id;
             if (userIdBeforeSignOut) {
@@ -209,6 +234,7 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
             signUp,
             signOut,
             resendConfirmationEmail,
+            resetPasswordForEmail,
         };
 
         return <SupabaseAuthContext.Provider value={value}>{children}</SupabaseAuthContext.Provider>;

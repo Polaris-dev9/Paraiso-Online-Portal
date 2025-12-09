@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
-import { User, Loader2, Lock, Mail, Eye, EyeOff, HelpCircle, Edit, BarChart2, Star } from 'lucide-react';
+import { User, Loader2, Lock, Mail, Eye, EyeOff, HelpCircle, Edit, BarChart2, Star, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,7 @@ import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 
 const GoogleIcon = () => (
@@ -18,7 +19,7 @@ const GoogleIcon = () => (
 );
 
 const UserLogin = () => {
-    const { signInWithPassword, signInWithGoogle, user: supabaseUser, resendConfirmationEmail } = useSupabaseAuth();
+    const { signInWithPassword, signInWithGoogle, user: supabaseUser, resendConfirmationEmail, resetPasswordForEmail } = useSupabaseAuth();
     const { login: adminLogin } = useAuth();
     const { toast } = useToast();
     const navigate = useNavigate();
@@ -29,6 +30,10 @@ const UserLogin = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [isEmailNotConfirmed, setIsEmailNotConfirmed] = useState(false);
     const [resendingEmail, setResendingEmail] = useState(false);
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
+    const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+    const [sendingResetEmail, setSendingResetEmail] = useState(false);
+    const [resetEmailSent, setResetEmailSent] = useState(false);
 
     // Não redirecionar automaticamente - deixar o usuário fazer login manualmente
     // Se já estiver logado, o RoleGuard em outras rotas protegerá
@@ -140,6 +145,75 @@ const UserLogin = () => {
         }
     };
 
+    const handleForgotPassword = async (e) => {
+        e.preventDefault();
+        if (!forgotPasswordEmail.trim()) {
+            toast({
+                variant: "destructive",
+                title: "Email necessário",
+                description: "Por favor, informe seu email.",
+            });
+            return;
+        }
+
+        setSendingResetEmail(true);
+        try {
+            console.log('[ForgotPassword] Sending reset email to:', forgotPasswordEmail.trim());
+            const { error, data } = await resetPasswordForEmail(forgotPasswordEmail.trim());
+            
+            if (error) {
+                console.error('[ForgotPassword] Error details:', {
+                    message: error.message,
+                    status: error.status,
+                    code: error.code,
+                    error
+                });
+                
+                // Tratar erros específicos
+                let errorMessage = "Não foi possível enviar o email de recuperação.";
+                let errorTitle = "Erro ao enviar email";
+                
+                if (error.message?.includes('rate_limit')) {
+                    errorMessage = "Muitas tentativas. Por favor, aguarde alguns minutos e tente novamente.";
+                } else if (error.message?.includes('user_not_found') || error.message?.includes('not found')) {
+                    errorMessage = "Este email não está cadastrado em nosso sistema.";
+                    errorTitle = "Email não encontrado";
+                } else if (error.message?.includes('email')) {
+                    errorMessage = "Por favor, verifique se o email está correto e tente novamente.";
+                } else {
+                    errorMessage = error.message || errorMessage;
+                }
+                
+                toast({
+                    variant: "destructive",
+                    title: errorTitle,
+                    description: errorMessage,
+                    duration: 8000,
+                });
+                return;
+            }
+            
+            console.log('[ForgotPassword] Reset email sent successfully');
+            setResetEmailSent(true);
+            toast({
+                variant: "success",
+                title: "✅ Email enviado!",
+                description: "Verifique sua caixa de entrada (e pasta de spam) para redefinir sua senha.",
+                duration: 6000,
+            });
+        } catch (error) {
+            console.error("[ForgotPassword] Unexpected error:", error);
+            toast({
+                variant: "destructive",
+                title: "Erro inesperado",
+                description: "Ocorreu um erro inesperado. Por favor, tente novamente ou entre em contato com o suporte.",
+                duration: 8000,
+            });
+        } finally {
+            setSendingResetEmail(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 py-12 px-4">
             <Helmet>
@@ -194,7 +268,17 @@ const UserLogin = () => {
                                             <Input id="password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Sua senha" required className="pl-10 pr-10" />
                                             <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                                         </div>
-                                        <Link to="#" className="text-xs text-blue-600 hover:underline mt-1 block text-right">Esqueci minha senha</Link>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => {
+                                                setForgotPasswordEmail(email);
+                                                setShowForgotPassword(true);
+                                                setResetEmailSent(false);
+                                            }}
+                                            className="text-xs text-blue-600 hover:underline mt-1 block text-right"
+                                        >
+                                            Esqueci minha senha
+                                        </button>
                                     </div>
                                     <Button type="submit" className="w-full gradient-button font-bold" disabled={loading}>{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Entrar</Button>
                                 </form>
@@ -222,6 +306,108 @@ const UserLogin = () => {
                     </motion.div>
                 </div>
             </div>
+
+            {/* Modal de Recuperação de Senha */}
+            <Dialog open={showForgotPassword} onOpenChange={setShowForgotPassword}>
+                <DialogContent className="sm:max-w-[500px] bg-white border-2 border-gray-300 shadow-2xl p-8">
+                    <DialogHeader className="text-center pb-4 bg-white rounded-t-lg">
+                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 shadow-md">
+                            <KeyRound className="h-8 w-8 text-blue-600" />
+                        </div>
+                        <DialogTitle className="text-2xl font-bold text-gray-900 bg-white">
+                            {resetEmailSent ? "Email Enviado!" : "Recuperar Senha"}
+                        </DialogTitle>
+                        <DialogDescription className="text-base text-gray-600 pt-2 bg-white">
+                            {resetEmailSent 
+                                ? "Verifique sua caixa de entrada e clique no link para redefinir sua senha."
+                                : "Digite o email associado à sua conta e enviaremos um link para redefinir sua senha."
+                            }
+                        </DialogDescription>
+                    </DialogHeader>
+                    {resetEmailSent ? (
+                        <div className="space-y-6 py-4 bg-white">
+                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 text-center shadow-sm">
+                                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                                    <Mail className="h-8 w-8 text-green-600" />
+                                </div>
+                                <p className="text-green-900 font-semibold text-lg mb-2">Email enviado com sucesso!</p>
+                                <p className="text-sm text-green-800 mb-4">
+                                    Enviamos um link de recuperação para:
+                                </p>
+                                <p className="text-base font-medium text-green-900 bg-white px-4 py-2 rounded-lg border border-green-200">
+                                    {forgotPasswordEmail}
+                                </p>
+                            </div>
+                            <Button 
+                                onClick={() => {
+                                    setShowForgotPassword(false);
+                                    setResetEmailSent(false);
+                                }}
+                                className="w-full h-11 text-base font-semibold bg-blue-600 hover:bg-blue-700"
+                                size="lg"
+                            >
+                                Fechar
+                            </Button>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleForgotPassword} className="space-y-5 py-2 bg-white">
+                            <div className="space-y-2 bg-white">
+                                <Label htmlFor="forgot-email" className="text-base font-medium text-gray-700 bg-white">
+                                    Endereço de E-mail
+                                </Label>
+                                <div className="relative bg-white">
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                    <Input
+                                        id="forgot-email"
+                                        type="email"
+                                        value={forgotPasswordEmail}
+                                        onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                                        placeholder="digite.seu@email.com"
+                                        required
+                                        autoFocus
+                                        className="pl-11 h-12 text-base border-2 bg-white focus:border-blue-500"
+                                    />
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1 bg-white">
+                                    Enviaremos um link seguro para redefinir sua senha
+                                </p>
+                            </div>
+                            <div className="flex gap-3 pt-2 bg-white">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                        setShowForgotPassword(false);
+                                        setForgotPasswordEmail('');
+                                    }}
+                                    className="flex-1 h-11 text-base font-medium border-2"
+                                    size="lg"
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={sendingResetEmail}
+                                    className="flex-1 h-11 text-base font-semibold bg-blue-600 hover:bg-blue-700"
+                                    size="lg"
+                                >
+                                    {sendingResetEmail ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                            Enviando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Mail className="mr-2 h-5 w-5" />
+                                            Enviar Link
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        </form>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

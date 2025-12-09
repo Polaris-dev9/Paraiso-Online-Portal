@@ -151,7 +151,9 @@ const SubscriberPage = () => {
     };
 
     const planDisplay = planDisplayMap[subscriber.plan_type] || subscriber.plan_type || 'Gratuito';
-    const hasStoreFeature = subscriber.plan_type === 'premium_vip';
+    // Loja Virtual disponível para premium_vip e gratuito (mesma lógica do StoreDashboard)
+    const isFreePlan = subscriber.plan_type === 'gratuito';
+    const hasStoreFeature = subscriber.plan_type === 'premium_vip' || isFreePlan;
 
     return (
         <div className="min-h-screen p-4 sm:p-6 md:p-8" style={{ backgroundColor: '#e0e0e0' }}>
