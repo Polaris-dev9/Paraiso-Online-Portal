@@ -80,9 +80,14 @@ export const subscriberService = {
         business_hours: subscriberData.business_hours || {},
         banner_image_url: subscriberData.banner_image_url || null,
         profile_image_url: subscriberData.profile_image_url || null,
-        category_id: subscriberData.category_id || null,
         slug: slug
       };
+
+      // Incluir category_id apenas se for fornecido
+      // Isso evita erro caso a coluna ainda não exista no banco
+      if (subscriberData.category_id !== undefined && subscriberData.category_id !== null) {
+        insertData.category_id = subscriberData.category_id;
+      }
 
       const { data, error } = await supabase
         .from('subscribers')

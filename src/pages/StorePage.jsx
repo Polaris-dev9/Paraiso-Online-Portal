@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
-import { Store, ShoppingCart, Star, MessageSquare, Phone, Mail, MapPin, Loader2, Package } from 'lucide-react';
+import { Store, ShoppingCart, Star, MessageSquare, Phone, Mail, MapPin, Loader2, Package, Facebook, Instagram, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { subscriberService } from '@/services/subscriberService';
 import { productService } from '@/services/productService';
 import { categoryService } from '@/services/categoryService';
+import storeSettingsService from '@/services/storeSettingsService';
 
 const StorePage = () => {
     const params = useParams();
@@ -17,6 +18,7 @@ const StorePage = () => {
     const [subscriber, setSubscriber] = useState(null);
     const [products, setProducts] = useState([]);
     const [category, setCategory] = useState(null);
+    const [storeSettings, setStoreSettings] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -45,6 +47,14 @@ const StorePage = () => {
                     } catch (catError) {
                         console.warn('Erro ao buscar categoria:', catError);
                     }
+                }
+
+                // Buscar configurações da loja
+                try {
+                    const settings = await storeSettingsService.getStoreSettings(subData.id);
+                    setStoreSettings(settings);
+                } catch (settingsError) {
+                    console.warn('Erro ao buscar configurações da loja:', settingsError);
                 }
 
                 // Buscar produtos públicos
@@ -158,36 +168,40 @@ const StorePage = () => {
 
                         {/* Informações */}
                         <div className="flex-grow">
-                            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{subscriber.name}</h1>
+                            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+                                {storeSettings?.store_name || subscriber.name}
+                            </h1>
                             {category && (
                                 <Badge className="mt-2 bg-blue-600 text-white">
                                     {category.name}
                                 </Badge>
                             )}
-                            {subscriber.description && (
-                                <p className="text-gray-600 mt-2 max-w-2xl">{subscriber.description}</p>
+                            {(storeSettings?.store_description || subscriber.description) && (
+                                <p className="text-gray-600 mt-2 max-w-2xl">
+                                    {storeSettings?.store_description || subscriber.description}
+                                </p>
                             )}
 
                             {/* Informações de contato e endereço */}
                             <div className="flex flex-wrap gap-4 mt-4 text-sm text-gray-600">
-                                {subscriber.phone && (
+                                {(storeSettings?.contact_phone || subscriber.phone) && (
                                     <a 
-                                        href={whatsappLink || `tel:${subscriber.phone}`}
+                                        href={whatsappLink || `tel:${storeSettings?.contact_phone || subscriber.phone}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="flex items-center gap-2 hover:text-blue-600"
                                     >
                                         <Phone className="h-4 w-4" />
-                                        <span>{subscriber.phone}</span>
+                                        <span>{storeSettings?.contact_phone || subscriber.phone}</span>
                                     </a>
                                 )}
-                                {subscriber.email && (
+                                {(storeSettings?.contact_email || subscriber.email) && (
                                     <a 
-                                        href={`mailto:${subscriber.email}`}
+                                        href={`mailto:${storeSettings?.contact_email || subscriber.email}`}
                                         className="flex items-center gap-2 hover:text-blue-600"
                                     >
                                         <Mail className="h-4 w-4" />
-                                        <span>{subscriber.email}</span>
+                                        <span>{storeSettings?.contact_email || subscriber.email}</span>
                                     </a>
                                 )}
                                 {fullAddress && (
@@ -195,6 +209,39 @@ const StorePage = () => {
                                         <MapPin className="h-4 w-4" />
                                         <span>{fullAddress}</span>
                                     </div>
+                                )}
+                                {storeSettings?.facebook_url && (
+                                    <a 
+                                        href={storeSettings.facebook_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 hover:text-blue-600"
+                                    >
+                                        <Facebook className="h-4 w-4" />
+                                        <span>Facebook</span>
+                                    </a>
+                                )}
+                                {storeSettings?.instagram_url && (
+                                    <a 
+                                        href={storeSettings.instagram_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 hover:text-blue-600"
+                                    >
+                                        <Instagram className="h-4 w-4" />
+                                        <span>Instagram</span>
+                                    </a>
+                                )}
+                                {storeSettings?.website_url && (
+                                    <a 
+                                        href={storeSettings.website_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 hover:text-blue-600"
+                                    >
+                                        <Globe className="h-4 w-4" />
+                                        <span>Website</span>
+                                    </a>
                                 )}
                             </div>
                         </div>
@@ -272,25 +319,30 @@ const StorePage = () => {
                                             <Button 
                                                 className="w-full bg-blue-700 hover:bg-blue-800"
                                                 onClick={() => {
-                                                    if (whatsappLink) {
+                                                    const contactPhone = storeSettings?.contact_whatsapp || storeSettings?.contact_phone || subscriber.phone;
+                                                    const contactEmail = storeSettings?.contact_email || subscriber.email;
+                                                    
+                                                    if (contactPhone) {
+                                                        const phone = contactPhone.replace(/\D/g, '');
+                                                        const waLink = `https://wa.me/55${phone}`;
                                                         const message = `Olá! Tenho interesse no produto: ${product.name} - R$ ${parseFloat(product.price || 0).toFixed(2).replace('.', ',')}`;
-                                                        window.open(`${whatsappLink}?text=${encodeURIComponent(message)}`, '_blank');
-                                                    } else if (subscriber.email) {
+                                                        window.open(`${waLink}?text=${encodeURIComponent(message)}`, '_blank');
+                                                    } else if (contactEmail) {
                                                         const subject = `Interesse no produto: ${product.name}`;
                                                         const body = `Olá!\n\nTenho interesse no produto: ${product.name}\nPreço: R$ ${parseFloat(product.price || 0).toFixed(2).replace('.', ',')}\n\nAguardo retorno.`;
-                                                        window.location.href = `mailto:${subscriber.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                                                        window.location.href = `mailto:${contactEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
                                                     }
                                                 }}
                                             >
                                                 <ShoppingCart className="mr-2 h-4 w-4" /> 
-                                                {whatsappLink ? 'Entrar em Contato' : 'Enviar E-mail'}
-                                            </Button>
+                                                {storeSettings?.contact_whatsapp || storeSettings?.contact_phone || subscriber.phone ? 'Entrar em Contato' : 'Enviar E-mail'}
+                                    </Button>
                                         </div>
-                                    </CardContent>
-                                </Card>
-                            </motion.div>
-                        ))}
-                    </div>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    ))}
+                </div>
                 )}
             </main>
         </div>

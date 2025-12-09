@@ -57,6 +57,7 @@ import React from 'react';
     import Checkout from '@/pages/Checkout';
     import PublicFigurePage from '@/pages/PublicFigurePage';
     import UserLogin from '@/pages/UserLogin';
+    import ResetPassword from '@/pages/ResetPassword';
     import MaintenancePage from '@/pages/MaintenancePage';
     import PressRoom from '@/pages/PressRoom';
     import SubscribeNow from '@/pages/SubscribeNow';
@@ -159,6 +160,7 @@ import React from 'react';
               <Route path="/login-admin" element={<AdminLogin />} />
               <Route path="/login-master" element={<MasterLogin />} />
               <Route path="/area-do-assinante" element={<UserLogin />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/maintenance" element={<MaintenancePage />} />
               <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
