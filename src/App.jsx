@@ -231,6 +231,7 @@ import React from 'react';
                 <Route path="/curriculos" element={<Resumes />} />
                 <Route path="/marketplace" element={<Marketplace />} />
                 <Route path="/marketplace/:storeSlug" element={<StorePage />} />
+                <Route path="/loja/:slug" element={<StorePage />} />
                 <Route path="/loja/test-drive" element={<TestDriveStore />} />
                 <Route path="/rankings" element={<Rankings />} />
                 <Route path="/utilidades" element={<PublicUtilities />} />
@@ -245,7 +246,8 @@ import React from 'react';
                 <Route path="/cadastro-gratis" element={<FreeRegister />} />
                 <Route path="/cadastro-gratuito" element={<FreeRegister />} />
                 <Route path="/acadastro-gratuito" element={<FreeRegister />} />
-                <Route path="/upgrade" element={<UpgradePlan />} />
+                <Route path="/upgrade" element={<RoleGuard requiredRoles={['subscriber']}><UpgradePlan /></RoleGuard>} />
+                <Route path="/upgrade-plan" element={<Navigate to="/upgrade" replace />} />
                 <Route path="/checkout" element={<Checkout />} />
                 <Route path="/sobre" element={<About />} />
                 <Route path="/contato" element={<Contact />} />

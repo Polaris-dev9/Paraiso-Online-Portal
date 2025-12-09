@@ -72,10 +72,36 @@ const SubscribeNow = () => {
                 </motion.div>
 
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                     <div className="flex justify-center items-center mb-10 space-x-4">
-                        <Label htmlFor="billing-cycle" className={`${billingCycle === 'monthly' ? 'font-bold text-blue-800' : 'text-gray-500'} transition-all`}>Pagamento Mensal</Label>
-                        <Switch id="billing-cycle" checked={billingCycle === 'annual'} onCheckedChange={(checked) => setBillingCycle(checked ? 'annual' : 'monthly')} className="data-[state=checked]:bg-green-600"/>
-                        <Label htmlFor="billing-cycle" className={`${billingCycle === 'annual' ? 'font-bold text-green-700' : 'text-gray-500'} transition-all`}>Pagamento Anual <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded-full ml-1">ECONOMIZE</span></Label>
+                     <div className="flex justify-center items-center mb-10">
+                        <div className="bg-white border-2 border-gray-300 rounded-full px-6 py-4 shadow-lg flex items-center space-x-6">
+                            <Label 
+                                htmlFor="billing-cycle" 
+                                className={`text-lg font-semibold cursor-pointer transition-all ${
+                                    billingCycle === 'monthly' 
+                                        ? 'text-blue-800 font-bold' 
+                                        : 'text-gray-500'
+                                }`}
+                            >
+                                Pagamento Mensal
+                            </Label>
+                            <Switch 
+                                id="billing-cycle" 
+                                checked={billingCycle === 'annual'} 
+                                onCheckedChange={(checked) => setBillingCycle(checked ? 'annual' : 'monthly')} 
+                                className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 scale-125"
+                            />
+                            <Label 
+                                htmlFor="billing-cycle" 
+                                className={`text-lg font-semibold cursor-pointer transition-all flex items-center ${
+                                    billingCycle === 'annual' 
+                                        ? 'text-green-700 font-bold' 
+                                        : 'text-gray-500'
+                                }`}
+                            >
+                                Pagamento Anual 
+                                <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded-full ml-2">ECONOMIZE</span>
+                            </Label>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Edit, BarChart2, Star, Info, ShieldCheck, LogOut, ShoppingBag, ArrowRight, ExternalLink } from 'lucide-react';
+import { User, Edit, BarChart2, Star, Info, ShieldCheck, LogOut, ShoppingBag, ArrowRight, ExternalLink, FileText, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
@@ -181,7 +181,13 @@ const SubscriberPage = () => {
                                 <div className="mt-4 p-4 bg-yellow-100 border-l-4 border-yellow-500 rounded-md">
                                     <h4 className="font-bold text-yellow-800">Dê um upgrade na sua conta!</h4>
                                     <p className="text-yellow-700 text-sm">Desbloqueie a Loja Virtual e outros recursos exclusivos com o plano Premium VIP.</p>
-                                    <Link to="/assine-agora"><Button size="sm" className="mt-2 bg-yellow-500 hover:bg-yellow-600 text-black">Ver Planos</Button></Link>
+                                    <Button 
+                                        size="sm" 
+                                        className="mt-2 bg-yellow-500 hover:bg-yellow-600 text-black"
+                                        onClick={() => navigate('/upgrade')}
+                                    >
+                                        Ver Planos <ArrowRight className="ml-2" size={14} />
+                                    </Button>
                                 </div>
                             )}
                         </CardContent>
@@ -223,6 +229,26 @@ const SubscriberPage = () => {
                             <CardContent className="flex-grow"><p className="text-gray-700">Veja quantas pessoas visualizaram sua página, seus produtos e entraram em contato.</p></CardContent>
                         </Card>
                     </motion.div>
+                    <motion.div whileHover={{ scale: 1.05 }} onClick={() => navigate('/contrato-assinante')}>
+                        <Card className="cursor-pointer bg-white border-gray-400 h-full flex flex-col">
+                            <CardHeader><CardTitle className="flex items-center text-gray-900"><FileText className="mr-3" /> Meus Contratos</CardTitle></CardHeader>
+                            <CardContent className="flex-grow"><p className="text-gray-700">Visualize, renove e gerencie seus contratos de assinatura.</p></CardContent>
+                        </Card>
+                    </motion.div>
+                    {subscriber.plan_type !== 'premium_vip' && (
+                        <motion.div whileHover={{ scale: 1.05 }} onClick={() => navigate('/upgrade')}>
+                            <Card className="cursor-pointer bg-gradient-to-br from-yellow-400 to-yellow-600 text-white h-full flex flex-col border-yellow-500">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center">
+                                        <Sparkles className="mr-3" /> Upgrade de Plano
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="flex-grow">
+                                    <p className="text-yellow-50">Desbloqueie mais recursos e alcance mais clientes. Escolha o plano ideal para o seu negócio!</p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    )}
                     {subscriber.slug ? (
                         <motion.div whileHover={{ scale: 1.05 }}>
                             <a 
