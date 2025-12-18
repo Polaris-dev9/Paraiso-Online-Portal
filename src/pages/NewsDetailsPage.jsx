@@ -2,44 +2,57 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
-import { Calendar, User, Eye, MessageSquare, Share2, Send } from 'lucide-react';
+import { Calendar, User, Eye, MessageSquare, Share2, Send, Loader2, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import Breadcrumbs from '@/components/common/Breadcrumbs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
+import { newsService } from '@/services/newsService';
+import { categoryService } from '@/services/categoryService';
 
 const NewsDetailsPage = () => {
     const { slug } = useParams();
     const { toast } = useToast();
     const [news, setNews] = useState(null);
+    const [category, setCategory] = useState(null);
     const [loading, setLoading] = useState(true);
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
 
     useEffect(() => {
-        const allNews = [
-            { id: 1, slug: 'nova-empresa-gera-empregos', title: "Nova empresa se instala na região gerando 200 empregos", excerpt: "Indústria tecnológica escolhe nossa cidade...", content: "O conteúdo completo da notícia sobre a nova empresa, detalhando os benefícios para a cidade, o tipo de indústria, e as expectativas de crescimento econômico. A matéria explora as vagas que serão abertas e como os moradores podem se candidatar.", image: "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=800&h=500&fit=crop", category: 'Economia', date: "2025-09-08", author: "João Silva", views: 1250, comments_count: 23, featured: true },
-            { id: 2, slug: 'festival-de-inverno-movimenta-economia', title: "Festival de inverno movimenta economia local", excerpt: "Evento cultural atrai milhares de visitantes...", content: "Detalhes sobre o festival de inverno, incluindo a programação completa, entrevistas com organizadores e comerciantes locais, e o impacto positivo no turismo e na cultura da cidade.", image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=500&fit=crop", category: 'Cultura', date: "2025-09-07", author: "Maria Santos", views: 890, comments_count: 15, featured: true },
-            { id: 3, slug: 'prefeitura-anuncia-obras', title: "Prefeitura anuncia obras de infraestrutura", excerpt: "Investimento de R$ 50 milhões em melhorias urbanas...", content: "A notícia detalha o plano de obras da prefeitura, com mapas das áreas que serão beneficiadas, cronograma de execução e entrevistas com engenheiros e com o prefeito sobre a importância do projeto.", image: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800&h=500&fit=crop", category: 'Política', date: "2025-09-06", author: "Carlos Oliveira", views: 2100, comments_count: 45, featured: false },
-        ];
-        const allComments = [
-            { id: 1, newsId: 1, author: 'Carlos', avatar: 'https://i.pravatar.cc/150?u=carlos', text: 'Excelente notícia para a nossa cidade! Mais empregos são sempre bem-vindos.' },
-            { id: 2, newsId: 1, author: 'Ana', avatar: 'https://i.pravatar.cc/150?u=ana', text: 'Alguém sabe como se candidatar para as vagas?' },
-        ];
-
-        const foundNews = allNews.find(n => n.slug === slug);
-        
-        setTimeout(() => {
-            if (foundNews) {
-                setNews(foundNews);
-                setComments(allComments.filter(c => c.newsId === foundNews.id));
-            }
-            setLoading(false);
-        }, 500);
-
+        loadNews();
     }, [slug]);
+
+    const loadNews = async () => {
+        try {
+            setLoading(true);
+            const newsData = await newsService.getNewsBySlug(slug);
+            
+            if (newsData) {
+                setNews(newsData);
+                
+                // Incrementar visualizações
+                await newsService.incrementViews(newsData.id);
+                
+                // Carregar categoria se existir
+                if (newsData.category_id) {
+                    try {
+                        const catData = await categoryService.getCategoryById(newsData.category_id);
+                        setCategory(catData);
+                    } catch (err) {
+                        console.error('Error loading category:', err);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error loading news:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleShare = () => {
         navigator.clipboard.writeText(window.location.href);
@@ -57,10 +70,27 @@ const NewsDetailsPage = () => {
         setNewComment('');
     };
 
-    if (loading) return <div className="flex justify-center items-center h-screen">Carregando...</div>;
-    if (!news) return <div className="text-center py-20"><h1 className="text-2xl font-bold">Notícia não encontrada</h1><Link to="/noticias"><Button className="mt-4">Voltar para Notícias</Button></Link></div>;
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+        );
+    }
+    
+    if (!news) {
+        return (
+            <div className="text-center py-20">
+                <h1 className="text-2xl font-bold">Notícia não encontrada</h1>
+                <Link to="/noticias">
+                    <Button className="mt-4">Voltar para Notícias</Button>
+                </Link>
+            </div>
+        );
+    }
 
-    const keywords = `${news.title.split(' ').join(', ')}, ${news.category}, notícias, São João do Paraíso`;
+    const date = news.published_at || news.created_at;
+    const keywords = `${news.title.split(' ').join(', ')}, ${category?.name || ''}, notícias, São João do Paraíso`;
 
     return (
         <div className="min-h-screen bg-white py-12">
@@ -79,20 +109,103 @@ const NewsDetailsPage = () => {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <article className="lg:col-span-2">
                             <div className="mb-6">
-                                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">{news.category}</span>
+                                {category && (
+                                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
+                                        {category.name}
+                                    </span>
+                                )}
                                 <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mt-3">{news.title}</h1>
                                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-gray-500 mt-4 text-sm">
-                                    <span className="flex items-center"><Calendar size={14} className="mr-1.5" /> {new Date(news.date).toLocaleDateString('pt-BR')}</span>
-                                    <span className="flex items-center"><User size={14} className="mr-1.5" /> {news.author}</span>
-                                    <span className="flex items-center"><Eye size={14} className="mr-1.5" /> {news.views} visualizações</span>
-                                    <span className="flex items-center"><MessageSquare size={14} className="mr-1.5" /> {news.comments_count} comentários</span>
+                                    {date && (
+                                        <span className="flex items-center">
+                                            <Calendar size={14} className="mr-1.5" /> 
+                                            {new Date(date).toLocaleDateString('pt-BR')}
+                                        </span>
+                                    )}
+                                    <span className="flex items-center">
+                                        <Eye size={14} className="mr-1.5" /> 
+                                        {news.views_count || 0} visualizações
+                                    </span>
                                 </div>
                             </div>
-                            <img src={news.image} alt={news.title} className="w-full rounded-lg shadow-lg mb-8" />
+
+                            {/* Banner Superior se existir */}
+                            {news.banner_url && (
+                                <div className="mb-8 rounded-xl overflow-hidden shadow-lg border">
+                                    <img 
+                                        src={news.banner_url} 
+                                        alt="Banner" 
+                                        className="w-full h-auto object-cover max-h-[400px]" 
+                                    />
+                                </div>
+                            )}
+
+                            {news.featured_image_url && !news.banner_url && (
+                                <img 
+                                    src={news.featured_image_url} 
+                                    alt={news.title} 
+                                    className="w-full rounded-lg shadow-lg mb-8" 
+                                />
+                            )}
+
                             <div className="prose max-w-none text-lg text-gray-800 leading-relaxed">
-                                <p className="font-semibold text-xl">{news.excerpt}</p>
-                                <p>{news.content}</p>
+                                {news.excerpt && (
+                                    <p className="font-semibold text-xl mb-4 border-l-4 border-blue-600 pl-4 py-1 bg-blue-50/50">{news.excerpt}</p>
+                                )}
+                                <div 
+                                    className="whitespace-pre-wrap"
+                                    dangerouslySetInnerHTML={{ 
+                                        __html: news.content 
+                                            ? news.content.replace(/\n/g, '<br />') 
+                                            : '' 
+                                    }} 
+                                />
                             </div>
+
+                            {/* Galeria de Fotos */}
+                            {news.gallery_urls && news.gallery_urls.length > 0 && (
+                                <div className="mt-12 space-y-4">
+                                    <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                                        <ImageIcon className="text-blue-600" /> Galeria de Fotos
+                                    </h3>
+                                    <Separator className="bg-gray-200" />
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                        {news.gallery_urls.map((url, index) => (
+                                            <motion.div 
+                                                key={index} 
+                                                whileHover={{ scale: 1.02 }}
+                                                className="aspect-video rounded-lg overflow-hidden border shadow-sm cursor-pointer"
+                                                onClick={() => window.open(url, '_blank')}
+                                            >
+                                                <img src={url} alt={`Galeria ${index + 1}`} className="w-full h-full object-cover" />
+                                            </motion.div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Links Relacionados */}
+                            {news.related_links && news.related_links.length > 0 && (
+                                <div className="mt-12 p-6 bg-gray-50 rounded-xl border border-gray-200">
+                                    <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                        <LinkIcon className="text-blue-600" /> Veja Mais / Links Relacionados
+                                    </h3>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {news.related_links.map((link, index) => (
+                                            <a 
+                                                key={index} 
+                                                href={link.url} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="flex items-center p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-400 hover:text-blue-600 transition-all shadow-sm group"
+                                            >
+                                                <LinkIcon size={16} className="mr-3 text-gray-400 group-hover:text-blue-500" />
+                                                <span className="font-medium">{link.title || 'Link Externo'}</span>
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </article>
                         <aside className="lg:col-span-1 space-y-8 sticky top-24">
                             <Card>

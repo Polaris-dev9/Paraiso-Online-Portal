@@ -23,7 +23,7 @@ import React, { useState } from 'react';
             setLoading(true);
             setError('');
             
-            const user = login(email, password);
+            const user = await login(email, password);
             
             if (user && (user.role === 'master' || user.role === 'general_admin' || user.role === 'content_admin' || user.role === 'franchisee')) {
                 toast({ title: '✅ Acesso Concedido!', description: 'Bem-vindo(a) à Área Administrativa.' });

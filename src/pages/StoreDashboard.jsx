@@ -923,8 +923,12 @@ const StoreDashboard = () => {
         }
     };
 
+    // Loja Virtual disponível para TODOS os planos (gratuito, essencial, premium, premium_vip)
+    const hasStoreFeature = subscriber?.plan_type === 'gratuito' ||
+                            subscriber?.plan_type === 'essencial' ||
+                            subscriber?.plan_type === 'premium' ||
+                            subscriber?.plan_type === 'premium_vip';
     const isFreePlan = subscriber?.plan_type === 'gratuito';
-    const hasStoreFeature = subscriber?.plan_type === 'premium_vip' || isFreePlan;
     const productLimit = productService.getProductLimit(subscriber?.plan_type || 'gratuito');
 
     const handleOpenForm = (product = null) => {

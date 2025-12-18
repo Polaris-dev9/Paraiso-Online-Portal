@@ -11,8 +11,11 @@ import imageService from '@/services/imageService';
  * @param {string} props.label - Label do campo
  * @param {string} props.currentImageUrl - URL da imagem atual (opcional)
  * @param {Function} props.onImageChange - Callback quando imagem é alterada (recebe URL)
+ * @param {Function} props.onImageUploaded - Callback quando upload é concluído (recebe URL, path)
  * @param {string} props.imageType - Tipo da imagem ('profile', 'banner', etc.)
- * @param {string} props.userId - ID do usuário
+ * @param {string} props.userId - ID do usuário (opcional)
+ * @param {string} props.folder - Pasta onde a imagem será armazenada (default: 'subscribers')
+ * @param {string} props.bucket - Nome do bucket do Supabase Storage (default: 'subscriber-images')
  * @param {boolean} props.required - Se é obrigatório
  * @param {string} props.accept - Tipos de arquivo aceitos (default: 'image/*')
  * @param {number} props.maxSizeMB - Tamanho máximo em MB (default: 5)
@@ -21,8 +24,11 @@ const ImageUpload = ({
   label,
   currentImageUrl,
   onImageChange,
+  onImageUploaded,
   imageType = 'image',
   userId,
+  folder = 'subscribers',
+  bucket = 'subscriber-images',
   required = false,
   accept = 'image/*',
   maxSizeMB = 5,
@@ -73,10 +79,13 @@ const ImageUpload = ({
       }
 
       // Fazer upload para Supabase Storage
-      const result = await imageService.uploadImage(fileToUpload, 'subscribers', userId, imageType);
+      const result = await imageService.uploadImage(fileToUpload, folder, userId, imageType, bucket);
       
       // Notificar componente pai
-      if (onImageChange) {
+      if (onImageUploaded) {
+        onImageUploaded(result.url, result.path);
+      } else if (onImageChange) {
+        // Manter compatibilidade com versão antiga
         onImageChange(result.url, result.path);
       }
 
@@ -95,9 +104,14 @@ const ImageUpload = ({
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-    if (onImageChange) {
+    
+    // Notificar componente pai da remoção
+    if (onImageUploaded) {
+      onImageUploaded(null, null);
+    } else if (onImageChange) {
       onImageChange(null, null);
     }
+    
     setError(null);
   };
 
@@ -113,18 +127,18 @@ const ImageUpload = ({
         </Label>
       )}
 
-      <div className="flex items-start gap-4">
+      <div className="flex flex-col sm:flex-row items-start gap-4">
         {/* Preview da imagem */}
-        <div className="relative flex-shrink-0">
+        <div className="relative flex-shrink-0 w-full sm:w-auto flex justify-center sm:block">
           {preview ? (
-            <div className="relative group">
+            <div className="relative group inline-block">
               <img
                 src={preview}
                 alt={label || 'Preview'}
                 className={cn(
-                  'border-2 border-gray-300 rounded-lg object-cover',
+                  'border-2 border-gray-300 rounded-lg object-cover bg-white',
                   imageType === 'banner' 
-                    ? 'w-64 h-32' 
+                    ? 'w-full max-w-[400px] aspect-[21/9] sm:w-64 sm:h-32' 
                     : 'w-32 h-32'
                 )}
               />
@@ -132,7 +146,7 @@ const ImageUpload = ({
                 <button
                   type="button"
                   onClick={handleRemove}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 shadow-md transition-all"
                   title="Remover imagem"
                 >
                   <X className="w-4 h-4" />
@@ -144,7 +158,7 @@ const ImageUpload = ({
               className={cn(
                 'border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50',
                 imageType === 'banner' 
-                  ? 'w-64 h-32' 
+                  ? 'w-full max-w-[400px] aspect-[21/9] sm:w-64 sm:h-32' 
                   : 'w-32 h-32'
               )}
             >
@@ -154,7 +168,7 @@ const ImageUpload = ({
         </div>
 
         {/* Controles de upload */}
-        <div className="flex-1 space-y-2">
+        <div className="flex-1 w-full space-y-3">
           <input
             ref={fileInputRef}
             type="file"
@@ -165,12 +179,13 @@ const ImageUpload = ({
             disabled={uploading}
           />
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={handleClick}
               disabled={uploading}
+              className="flex-1 sm:flex-none h-10"
             >
               {uploading ? (
                 <>
@@ -190,7 +205,7 @@ const ImageUpload = ({
                 type="button"
                 variant="outline"
                 onClick={handleRemove}
-                className="text-red-600 hover:text-red-700"
+                className="flex-1 sm:flex-none text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 h-10"
               >
                 <X className="w-4 h-4 mr-2" />
                 Remover
@@ -199,11 +214,12 @@ const ImageUpload = ({
           </div>
 
           {error && (
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-red-600 font-medium">{error}</p>
           )}
 
-          <p className="text-xs text-gray-500">
-            Formatos aceitos: JPG, PNG, WEBP, GIF. Tamanho máximo: {maxSizeMB}MB
+          <p className="text-xs text-gray-500 leading-relaxed">
+            Formatos aceitos: JPG, PNG, WEBP, GIF.<br/>
+            Tamanho máximo: {maxSizeMB}MB
           </p>
         </div>
       </div>

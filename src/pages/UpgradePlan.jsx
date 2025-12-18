@@ -78,20 +78,19 @@ const UpgradePlan = () => {
                 return;
             }
 
-            // Executar upgrade
-            const result = await planService.upgradePlan(
-                subscriber.id,
-                targetPlanId,
-                billingCycle
-            );
-
-            toast({
-                title: 'Upgrade realizado!',
-                description: 'Seu plano foi atualizado com sucesso. Aguarde confirmação do pagamento para ativação.',
+            // Redirecionar para checkout com dados do plano
+            const price = planService.getPrice(targetPlanId, billingCycle);
+            const plan = planService.getPlanById(targetPlanId);
+            
+            navigate('/checkout', {
+                state: {
+                    planId: targetPlanId,
+                    planName: plan.name,
+                    planPrice: price,
+                    billingCycle: billingCycle,
+                    subscriberId: subscriber.id
+                }
             });
-
-            // Redirecionar para página de contratos
-            navigate('/contrato-assinante');
 
         } catch (error) {
             console.error('Error upgrading plan:', error);

@@ -54,17 +54,23 @@ const UserLogin = () => {
         setLoading(true);
         setError(null);
         
-        const adminUser = adminLogin(email, password);
+        // Tentar login admin primeiro (é assíncrono)
+        const adminUser = await adminLogin(email, password);
         if (adminUser) {
             toast({ 
                 variant: "success",
                 title: "Login administrativo bem-sucedido!", 
                 description: "Redirecionando para o painel..." 
             });
-            navigate('/admin/dashboard');
+            // Aguardar um pouco mais para garantir que o estado do contexto seja atualizado
+            // e o RoleGuard possa detectar o usuário antes de redirecionar
+            await new Promise(resolve => setTimeout(resolve, 300));
+            setLoading(false);
+            navigate('/admin/dashboard', { replace: true });
             return;
         }
 
+        // Se não for admin, tentar login como assinante (Supabase)
         const { error: supabaseError } = await signInWithPassword(email, password);
         if (supabaseError) {
             handleLoginError(supabaseError);
@@ -74,7 +80,11 @@ const UserLogin = () => {
                 title: "Login bem-sucedido!", 
                 description: "Bem-vindo(a) de volta!" 
             });
-            navigate('/subscriber-area');
+            // Aguardar um pouco para garantir que o estado seja atualizado
+            await new Promise(resolve => setTimeout(resolve, 300));
+            setLoading(false);
+            navigate('/subscriber-area', { replace: true });
+            return;
         }
         setLoading(false);
     };

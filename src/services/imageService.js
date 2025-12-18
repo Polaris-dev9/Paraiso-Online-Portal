@@ -7,12 +7,13 @@ const imageService = {
   /**
    * Faz upload de uma imagem para o Supabase Storage
    * @param {File} file - Arquivo de imagem a ser enviado
-   * @param {string} folder - Pasta onde a imagem será armazenada (ex: 'profiles', 'banners')
-   * @param {string} userId - ID do usuário (para organizar arquivos)
-   * @param {string} imageType - Tipo da imagem (ex: 'profile', 'banner')
+   * @param {string} folder - Pasta onde a imagem será armazenada (ex: 'profiles', 'banners', 'news')
+   * @param {string} userId - ID do usuário (para organizar arquivos, opcional)
+   * @param {string} imageType - Tipo da imagem (ex: 'profile', 'banner', 'featured')
+   * @param {string} bucket - Nome do bucket (padrão: 'subscriber-images')
    * @returns {Promise<{url: string, path: string}>} URL pública e caminho da imagem
    */
-  async uploadImage(file, folder = 'subscribers', userId, imageType = 'image') {
+  async uploadImage(file, folder = 'subscribers', userId, imageType = 'image', bucket = 'subscriber-images') {
     try {
       // Validar tipo de arquivo
       if (!file.type.startsWith('image/')) {
@@ -27,12 +28,39 @@ const imageService = {
 
       // Gerar nome único para o arquivo
       const fileExt = file.name.split('.').pop();
-      const fileName = `${imageType}_${userId}_${Date.now()}.${fileExt}`;
-      const filePath = `${folder}/${userId}/${fileName}`;
+      const timestamp = Date.now();
+      
+      // Se userId não fornecido, usar timestamp como identificador único
+      const fileIdentifier = userId || `temp_${timestamp}`;
+      const fileName = `${imageType}_${fileIdentifier}_${timestamp}.${fileExt}`;
+      
+      // Construir caminho: se userId fornecido, usar estrutura userId/pasta, senão apenas pasta
+      const filePath = userId 
+        ? `${folder}/${userId}/${fileName}`
+        : `${folder}/${fileName}`;
+
+      // Nota: A verificação de sessão foi removida porque a política RLS
+      // permite uploads sem autenticação para as pastas news/ e events/
+      // Se você quiser reativar a verificação, descomente o código abaixo:
+      /*
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error('[imageService] Error getting session:', sessionError);
+        throw new Error('Erro de autenticação: ' + sessionError.message);
+      }
+      if (!session) {
+        console.error('[imageService] No session found. User is not authenticated.');
+        throw new Error('Você precisa estar autenticado para fazer upload de imagens.');
+      }
+      console.log('[imageService] User authenticated:', {
+        userId: session.user.id,
+        email: session.user.email
+      });
+      */
 
       // Fazer upload para o Supabase Storage
       const { data, error } = await supabase.storage
-        .from('subscriber-images') // Nome do bucket
+        .from(bucket)
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false
@@ -46,7 +74,7 @@ const imageService = {
       // Obter URL pública da imagem
       // getPublicUrl retorna diretamente { publicUrl: string }, é síncrono
       const urlResult = supabase.storage
-        .from('subscriber-images')
+        .from(bucket)
         .getPublicUrl(filePath);
 
       console.log('[imageService] getPublicUrl result:', { urlResult, filePath });
@@ -67,7 +95,7 @@ const imageService = {
         // A URL do Supabase está no cliente: https://eymkoopvzukbigeoikkf.supabase.co
         const supabaseUrl = 'https://eymkoopvzukbigeoikkf.supabase.co';
         if (supabaseUrl && filePath) {
-          publicUrl = `${supabaseUrl}/storage/v1/object/public/subscriber-images/${filePath}`;
+          publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`;
           console.log('[imageService] Constructed public URL manually:', publicUrl);
         } else {
           console.error('[imageService] Failed to get public URL:', { 
@@ -101,18 +129,25 @@ const imageService = {
    * @param {string} filePath - Caminho do arquivo no storage
    * @returns {Promise<boolean>} true se deletado com sucesso
    */
-  async deleteImage(filePath) {
+  async deleteImage(filePath, bucket = 'subscriber-images') {
     try {
       if (!filePath) {
         return true; // Se não há arquivo, consideramos sucesso
       }
 
       // Extrair apenas o caminho relativo (sem o bucket)
-      const pathParts = filePath.split('/');
-      const relativePath = pathParts.slice(pathParts.indexOf('subscriber-images') + 1).join('/');
+      // Se filePath já é relativo, usar diretamente; senão extrair
+      let relativePath = filePath;
+      if (filePath.includes('/')) {
+        const pathParts = filePath.split('/');
+        const bucketIndex = pathParts.indexOf(bucket);
+        if (bucketIndex >= 0) {
+          relativePath = pathParts.slice(bucketIndex + 1).join('/');
+        }
+      }
 
       const { error } = await supabase.storage
-        .from('subscriber-images')
+        .from(bucket)
         .remove([relativePath]);
 
       if (error) {

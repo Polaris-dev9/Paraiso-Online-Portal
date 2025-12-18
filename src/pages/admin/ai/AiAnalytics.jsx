@@ -27,7 +27,7 @@ const AiAnalytics = () => {
                 <h1 className="text-3xl md:text-4xl font-bold text-indigo-900 flex items-center">
                     <BarChart2 className="mr-3 h-8 w-8" /> Análise e Métricas
                 </h1>
-                <p className="text-gray-600 mt-2">Acompanhe o desempenho e a eficácia do seu Super Agente IA.</p>
+                <p className="text-gray-600 mt-2">Acompanhe o desempenho e a eficácia da ISA.</p>
             </motion.div>
 
             <motion.div 

@@ -23,7 +23,7 @@ import React, { useState } from 'react';
             setLoading(true);
             setError('');
             
-            const user = login(email, password);
+            const user = await login(email, password);
             
             if (user && user.role === 'master') {
                 toast({ title: '👑 Acesso Master Concedido!', description: 'Bem-vindo(a), Comandante!' });
