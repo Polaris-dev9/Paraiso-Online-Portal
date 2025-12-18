@@ -66,7 +66,7 @@ const AdminDashboard = () => {
             roles: ['master'],
             items: [
                 { to: '/admin/franquias', icon: Building, title: 'Franquias', description: 'Administre as franquias e licenças.', color: '#8b5cf6', roles: ['master'] },
-                { to: '/admin/ia', icon: Bot, title: 'Super Agente IA', description: 'Gerencie a inteligência artificial Sophia.', color: '#a855f7', roles: ['master'] },
+                { to: '/admin/ia', icon: Bot, title: 'Agente IA ISA', description: 'Gerencie a inteligência artificial ISA.', color: '#a855f7', roles: ['master'] },
                 { to: '/admin/equipe', icon: Shield, title: 'Equipe e Permissões', description: 'Controle o acesso da equipe.', color: '#ec4899', roles: ['master'] },
                 { to: '/admin/configuracoes', icon: Settings, title: 'Configurações Gerais', description: 'Ajustes gerais do sistema.', color: '#84cc16', roles: ['master'] },
             ]

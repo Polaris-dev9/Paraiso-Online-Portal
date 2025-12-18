@@ -5,7 +5,8 @@ import { motion } from 'framer-motion';
 import { 
     MapPin, Phone, Mail, Globe, Share2, Eye, 
     Clock, Building, MessageCircle, Facebook, 
-    Instagram, Linkedin, Youtube, CheckCircle 
+    Instagram, Linkedin, Youtube, CheckCircle,
+    Camera, Video
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -320,6 +321,110 @@ const SubscriberPublicPage = () => {
                                 )}
                             </CardContent>
                         </Card>
+
+                        {/* Gallery Images - For Essencial, Premium, Premium VIP plans */}
+                        {subscriber.gallery_images && Array.isArray(subscriber.gallery_images) && subscriber.gallery_images.length > 0 && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Camera className="w-5 h-5 text-blue-600" />
+                                        Galeria de Imagens
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                        {subscriber.gallery_images.map((imageItem, index) => {
+                                            // Handle both string URLs and object with url property
+                                            const imageUrl = typeof imageItem === 'string' ? imageItem : (imageItem?.url || imageItem);
+                                            return (
+                                                <motion.div
+                                                    key={index}
+                                                    initial={{ opacity: 0, scale: 0.9 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    transition={{ delay: index * 0.1 }}
+                                                    className="relative aspect-square rounded-lg overflow-hidden shadow-md cursor-pointer hover:shadow-lg transition-shadow group"
+                                                    onClick={() => window.open(imageUrl, '_blank')}
+                                                >
+                                                    <img 
+                                                        src={imageUrl} 
+                                                        alt={`${subscriber.name} - Imagem ${index + 1}`}
+                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                        onError={(e) => {
+                                                            e.target.src = 'https://via.placeholder.com/300x300?text=Imagem+Indisponível';
+                                                        }}
+                                                    />
+                                                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-opacity"></div>
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* Company Video - For Premium VIP plan */}
+                        {subscriber.video_url && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Video className="w-5 h-5 text-blue-600" />
+                                        Vídeo da Empresa
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="aspect-video rounded-lg overflow-hidden">
+                                        {(() => {
+                                            // Extract YouTube video ID
+                                            const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+                                            const youtubeMatch = subscriber.video_url.match(youtubeRegex);
+                                            
+                                            // Extract Vimeo video ID
+                                            const vimeoRegex = /(?:vimeo\.com\/)(?:.*\/)?(\d+)/;
+                                            const vimeoMatch = subscriber.video_url.match(vimeoRegex);
+                                            
+                                            if (youtubeMatch) {
+                                                const videoId = youtubeMatch[1];
+                                                return (
+                                                    <iframe
+                                                        src={`https://www.youtube.com/embed/${videoId}`}
+                                                        title="Vídeo da Empresa"
+                                                        className="w-full h-full"
+                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                        allowFullScreen
+                                                    ></iframe>
+                                                );
+                                            } else if (vimeoMatch) {
+                                                const videoId = vimeoMatch[1];
+                                                return (
+                                                    <iframe
+                                                        src={`https://player.vimeo.com/video/${videoId}`}
+                                                        title="Vídeo da Empresa"
+                                                        className="w-full h-full"
+                                                        allow="autoplay; fullscreen; picture-in-picture"
+                                                        allowFullScreen
+                                                    ></iframe>
+                                                );
+                                            } else {
+                                                // Fallback: show link
+                                                return (
+                                                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                                                        <a
+                                                            href={subscriber.video_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-blue-600 hover:underline flex items-center gap-2"
+                                                        >
+                                                            <Video className="w-5 h-5" />
+                                                            Ver Vídeo
+                                                        </a>
+                                                    </div>
+                                                );
+                                            }
+                                        })()}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
 
                         {/* Stats */}
                         <Card>

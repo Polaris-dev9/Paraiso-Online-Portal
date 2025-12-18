@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { subscriberService } from '@/services/subscriberService';
 import { cepService } from '@/services/cepService';
@@ -16,11 +16,13 @@ import { categoryService } from '@/services/categoryService';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import ImageUpload from '@/components/common/ImageUpload';
+import GalleryUpload from '@/components/common/GalleryUpload';
 import imageService from '@/services/imageService';
 
 const EditSubscriberProfile = () => {
     const { toast } = useToast();
     const navigate = useNavigate();
+    const location = useLocation();
     const { user, loading: authLoading } = useSupabaseAuth();
     const [loading, setLoading] = useState(false);
     const [loadingCep, setLoadingCep] = useState(false);
@@ -33,6 +35,13 @@ const EditSubscriberProfile = () => {
     const [subscriber, setSubscriber] = useState(null);
     const [profileImageUrl, setProfileImageUrl] = useState(null);
     const [bannerImageUrl, setBannerImageUrl] = useState(null);
+    const [galleryImages, setGalleryImages] = useState([]);
+    const [videoUrl, setVideoUrl] = useState('');
+    const [socialLinks, setSocialLinks] = useState({
+        facebook: '',
+        instagram: '',
+        website: ''
+    });
     
     const [formData, setFormData] = useState({
         name: '',
@@ -148,16 +157,21 @@ const EditSubscriberProfile = () => {
 
                 setSubscriber(subscriberData);
 
-                // Debug: verificar se category_id está presente
+                // Debug: verificar dados do assinante incluindo plan_type
                 console.log('[EditProfile] Subscriber data loaded:', {
                     hasCategoryId: !!subscriberData.category_id,
                     categoryId: subscriberData.category_id,
-                    subscriberId: subscriberData.id
+                    subscriberId: subscriberData.id,
+                    plan_type: subscriberData.plan_type,
+                    hasGalleryImages: !!subscriberData.gallery_images,
+                    hasSocialLinks: !!subscriberData.social_links,
+                    hasVideoUrl: !!subscriberData.video_url
                 });
 
                 // Preencher formulário com dados existentes
                 const address = subscriberData.address || {};
                 const categoryValue = subscriberData.category_id ? String(subscriberData.category_id) : '';
+                const social = subscriberData.social_links || {};
                 
                 console.log('[EditProfile] Setting form data with category:', categoryValue);
                 
@@ -175,6 +189,15 @@ const EditSubscriberProfile = () => {
                     city: address.city || '',
                     state: address.state || '',
                     description: subscriberData.description || ''
+                });
+
+                // Carregar dados extras do plano
+                setGalleryImages(subscriberData.gallery_images || []);
+                setVideoUrl(subscriberData.video_url || '');
+                setSocialLinks({
+                    facebook: social.facebook || '',
+                    instagram: social.instagram || '',
+                    website: social.website || ''
                 });
 
                 // Carregar URLs das imagens existentes
@@ -223,7 +246,36 @@ const EditSubscriberProfile = () => {
         };
 
         loadSubscriberData();
-    }, [user, navigate, toast, authLoading]);
+    }, [user, navigate, toast, authLoading, location.key]); // Adicionar location.key para forçar recarregamento quando navegar para esta página
+
+    // Recarregar dados quando a página receber foco (útil após upgrade de plano)
+    useEffect(() => {
+        const handleFocus = () => {
+            if (user && subscriber) {
+                console.log('[EditProfile] Page received focus, checking if subscriber data needs refresh...');
+                // Recarregar dados do assinante para verificar se plan_type foi atualizado
+                const refreshData = async () => {
+                    try {
+                        const freshData = await subscriberService.getSubscriberByUserId(user.id);
+                        if (freshData && freshData.plan_type !== subscriber.plan_type) {
+                            console.log('[EditProfile] Plan type changed! Reloading data...', {
+                                old: subscriber.plan_type,
+                                new: freshData.plan_type
+                            });
+                            // Forçar recarregamento completo
+                            window.location.reload();
+                        }
+                    } catch (error) {
+                        console.error('[EditProfile] Error checking subscriber data:', error);
+                    }
+                };
+                refreshData();
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
+    }, [user, subscriber]);
 
     const handleInputChange = (e) => {
         const { id, value } = e.target;
@@ -384,7 +436,17 @@ const EditSubscriberProfile = () => {
                 description: formData.description.trim() || null,
                 profile_image_url: profileImageUrl || null,
                 banner_image_url: bannerImageUrl || null,
-                slug: slug || subscriber.slug
+                slug: slug || subscriber.slug,
+                // Campos extras por plano
+                social_links: subscriber.plan_type === 'premium' || subscriber.plan_type === 'premium_vip' 
+                    ? socialLinks 
+                    : subscriber.social_links || {},
+                gallery_images: (subscriber.plan_type === 'essencial' || subscriber.plan_type === 'premium' || subscriber.plan_type === 'premium_vip')
+                    ? galleryImages
+                    : subscriber.gallery_images || [],
+                video_url: subscriber.plan_type === 'premium_vip' 
+                    ? videoUrl || null
+                    : subscriber.video_url || null
                 // logo_url será salvo via RPC separadamente
             };
 
@@ -511,12 +573,22 @@ const EditSubscriberProfile = () => {
                         Voltar para o Painel
                     </Button>
                     
-                    <h1 className="text-4xl lg:text-5xl font-extrabold text-blue-900 mb-2">
-                        Editar Perfil e Página
-                    </h1>
-                    <p className="text-xl text-gray-600">
-                        Atualize suas informações de contato, endereço e descrição.
-                    </p>
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <h1 className="text-4xl lg:text-5xl font-extrabold text-blue-900 mb-2">
+                                Editar Perfil e Página
+                            </h1>
+                            <p className="text-xl text-gray-600">
+                                Atualize suas informações de contato, endereço e descrição.
+                            </p>
+                        </div>
+                        {subscriber && (
+                            <div className="text-right">
+                                <p className="text-sm text-gray-500 mb-1">Plano Atual:</p>
+                                <p className="text-lg font-bold text-blue-700">{subscriber.plan_type === 'premium_vip' ? 'Premium VIP' : subscriber.plan_type === 'premium' ? 'Premium' : subscriber.plan_type === 'essencial' ? 'Essencial' : 'Gratuito'}</p>
+                            </div>
+                        )}
+                    </div>
                 </motion.div>
 
                 <form onSubmit={handleSubmit}>
@@ -637,6 +709,100 @@ const EditSubscriberProfile = () => {
                             )}
                         </CardContent>
                     </Card>
+
+                    {/* Seção de Galeria - Para planos Essencial+ */}
+                    {subscriber && (subscriber.plan_type === 'essencial' || subscriber.plan_type === 'premium' || subscriber.plan_type === 'premium_vip') && (
+                        <Card className="shadow-lg mt-6">
+                            <CardHeader>
+                                <CardTitle className="text-2xl text-blue-800 flex items-center">
+                                    <FileUp className="mr-2" />
+                                    Galeria de Imagens {subscriber.plan_type === 'essencial' && '(até 10 fotos)'}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-sm text-gray-600 mb-4">
+                                    Adicione fotos da sua empresa, produtos ou serviços.
+                                    {subscriber.plan_type === 'essencial' && ' Limite: 10 imagens.'}
+                                </p>
+                                {subscriber && (
+                                    <GalleryUpload
+                                        subscriberId={subscriber.id}
+                                        currentImages={galleryImages}
+                                        maxImages={subscriber.plan_type === 'essencial' ? 10 : 50}
+                                        onImagesChange={(newImages) => {
+                                            setGalleryImages(newImages);
+                                        }}
+                                    />
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Seção de Redes Sociais - Para planos Premium+ */}
+                    {subscriber && (subscriber.plan_type === 'premium' || subscriber.plan_type === 'premium_vip') && (
+                        <Card className="shadow-lg mt-6">
+                            <CardHeader>
+                                <CardTitle className="text-2xl text-blue-800">Redes Sociais</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div>
+                                    <Label htmlFor="facebook">Facebook</Label>
+                                    <Input 
+                                        id="facebook" 
+                                        type="url"
+                                        placeholder="https://facebook.com/sua-empresa"
+                                        value={socialLinks.facebook}
+                                        onChange={(e) => setSocialLinks({...socialLinks, facebook: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <Label htmlFor="instagram">Instagram</Label>
+                                    <Input 
+                                        id="instagram" 
+                                        type="url"
+                                        placeholder="https://instagram.com/sua-empresa"
+                                        value={socialLinks.instagram}
+                                        onChange={(e) => setSocialLinks({...socialLinks, instagram: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <Label htmlFor="website">Website</Label>
+                                    <Input 
+                                        id="website" 
+                                        type="url"
+                                        placeholder="https://www.sua-empresa.com.br"
+                                        value={socialLinks.website}
+                                        onChange={(e) => setSocialLinks({...socialLinks, website: e.target.value})}
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Seção de Vídeo - Apenas para Premium VIP */}
+                    {subscriber && subscriber.plan_type === 'premium_vip' && (
+                        <Card className="shadow-lg mt-6">
+                            <CardHeader>
+                                <CardTitle className="text-2xl text-blue-800">Vídeo da Empresa</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div>
+                                    <Label htmlFor="videoUrl">URL do Vídeo (YouTube, Vimeo, etc.)</Label>
+                                    <Input 
+                                        id="videoUrl" 
+                                        type="url"
+                                        placeholder="https://www.youtube.com/watch?v=..."
+                                        value={videoUrl}
+                                        onChange={(e) => setVideoUrl(e.target.value)}
+                                        className="mb-2"
+                                    />
+                                    <p className="text-xs text-gray-500">
+                                        Cole o link do vídeo do YouTube, Vimeo ou outra plataforma de vídeo.
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
 
                     <Card className="shadow-lg mt-6">
                         <CardHeader>

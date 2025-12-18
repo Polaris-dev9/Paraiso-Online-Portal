@@ -6,7 +6,9 @@ const breadcrumbNameMap = {
   '/guia-comercial': 'Guia Comercial',
   '/guia-profissional': 'Guia Profissional',
   '/noticias': 'Notícias',
+  '/noticia': 'Notícias', // Mapeamento para singular também
   '/eventos': 'Eventos',
+  '/evento': 'Eventos', // Mapeamento para singular também
   '/vagas': 'Empregos',
   '/curriculos': 'Currículos',
   '/loja': 'Loja Virtual',
@@ -22,6 +24,12 @@ const Breadcrumbs = () => {
   const location = useLocation();
   const pathnames = location.pathname.split('/').filter((x) => x);
 
+  // Mapeamento especial para rotas que precisam de correção
+  const routeCorrections = {
+    '/noticia': '/noticias', // Corrige /noticia para /noticias
+    '/evento': '/eventos',   // Corrige /evento para /eventos (caso necessário)
+  };
+
   return (
     <nav aria-label="Breadcrumb" className="bg-gray-100 p-3 rounded-lg mb-8">
       <ol className="flex items-center space-x-2 text-sm text-gray-500">
@@ -32,9 +40,18 @@ const Breadcrumbs = () => {
           </Link>
         </li>
         {pathnames.map((value, index) => {
-          const to = `/${pathnames.slice(0, index + 1).join('/')}`;
+          let to = `/${pathnames.slice(0, index + 1).join('/')}`;
+          // Aplica correção de rota se necessário
+          if (routeCorrections[to]) {
+            to = routeCorrections[to];
+          }
           const isLast = index === pathnames.length - 1;
-          const name = breadcrumbNameMap[to] || value.charAt(0).toUpperCase() + value.slice(1).replace(/-/g, ' ');
+          // Usa o nome mapeado ou gera um nome amigável
+          let name = breadcrumbNameMap[to] || value.charAt(0).toUpperCase() + value.slice(1).replace(/-/g, ' ');
+          // Se for o último item e não tiver mapeamento, usa o nome original
+          if (isLast && !breadcrumbNameMap[to]) {
+            name = value.charAt(0).toUpperCase() + value.slice(1).replace(/-/g, ' ');
+          }
 
           return (
             <li key={to} className="flex items-center">

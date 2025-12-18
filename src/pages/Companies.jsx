@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
-import { Building2, Search, Filter, Award, ChevronDown, X } from 'lucide-react';
+import { Building2, Search, Filter, Award, ChevronDown, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
@@ -12,12 +12,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { subscriberService } from '@/services/subscriberService';
+import { categoryService } from '@/services/categoryService';
 
 const Companies = () => {
     const [companies, setCompanies] = useState([]);
     const [categories, setCategories] = useState([]);
-    const [plans, setPlans] = useState([]);
+    const [plans, setPlans] = useState(['gratuito', 'essencial', 'premium']);
     const [searchTerm, setSearchTerm] = useState('');
+    const [loading, setLoading] = useState(true);
     const [filters, setFilters] = useState({
         category: 'all',
         plan: 'all',
@@ -25,27 +28,36 @@ const Companies = () => {
     });
     
     useEffect(() => {
-        const storedCompanies = JSON.parse(localStorage.getItem('ppo_companies')) || [
-            { id: 1, slug: 'restaurante-sabor-divino', name: 'Restaurante Sabor Divino', category: 'Alimentação', subcategory: 'Restaurantes', logo: '🍽️', plan: 'Premium', status: true, description: 'O melhor da culinária local.' },
-            { id: 2, slug: 'tech-solutions-ltda', name: 'Tech Solutions Ltda', category: 'Tecnologia', subcategory: 'Desenvolvimento de Software', logo: '💻', plan: 'Premium', status: true, description: 'Soluções inovadoras para seu negócio.'  },
-            { id: 3, slug: 'moda-estilo-boutique', name: 'Moda & Estilo Boutique', category: 'Vestuário', subcategory: 'Roupas Femininas', logo: '👗', plan: 'Essencial', status: true, description: 'As últimas tendências da moda.' },
-            { id: 4, slug: 'supermercado-preco-bom', name: 'Supermercado Preço Bom', category: 'Alimentação', subcategory: 'Supermercados', logo: '🛒', plan: 'Gratuito', status: true, description: 'Economia e variedade para sua família.' },
-            { id: 5, slug: 'construforte-materiais', name: 'ConstruForte Materiais', category: 'Construção', subcategory: 'Materiais de Construção', logo: '🧱', plan: 'Essencial', status: true, description: 'Tudo para sua obra.' },
-            { id: 6, slug: 'academia-corpo-em-forma', name: 'Academia Corpo em Forma', category: 'Saúde & Bem-estar', subcategory: 'Academias', logo: '🏋️', plan: 'Gratuito', status: true, description: 'Mude seu corpo e sua vida.' },
-        ];
-        const storedCategories = JSON.parse(localStorage.getItem('ppo_categories')) || [
-            { id: 1, name: 'Alimentação', subcategories: ['Restaurantes', 'Lanchonetes', 'Supermercados'] },
-            { id: 2, name: 'Vestuário', subcategories: ['Roupas Femininas', 'Roupas Masculinas', 'Calçados'] },
-            { id: 3, name: 'Saúde & Bem-estar', subcategories: ['Academias', 'Farmácias', 'Clínicas'] },
-            { id: 4, name: 'Construção', subcategories: ['Materiais de Construção', 'Mão de Obra', 'Arquitetura'] },
-            { id: 5, name: 'Tecnologia', subcategories: ['Loja de Eletrônicos', 'Assistência Técnica', 'Desenvolvimento de Software'] },
-        ];
-        const storedPlans = JSON.parse(localStorage.getItem('ppo_plans')) || ['Gratuito', 'Essencial', 'Premium'];
-
-        setCompanies(storedCompanies);
-        setCategories(storedCategories);
-        setPlans(storedPlans);
+        loadCompanies();
+        loadCategories();
     }, []);
+
+    const loadCompanies = async () => {
+        try {
+            setLoading(true);
+            // Buscar apenas empresas (profile_type='empresarial') e ativas (status=true)
+            const data = await subscriberService.getAllSubscribers({
+                profile_type: 'empresarial',
+                status: true
+            });
+            setCompanies(data);
+        } catch (error) {
+            console.error('Error loading companies:', error);
+            setCompanies([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loadCategories = async () => {
+        try {
+            const data = await categoryService.getCategoriesByType('commercial', true);
+            setCategories(data);
+        } catch (error) {
+            console.error('Error loading categories:', error);
+            setCategories([]);
+        }
+    };
 
     const handleFilterChange = (key, value) => {
         setFilters(prev => ({ ...prev, [key]: value }));
@@ -57,15 +69,19 @@ const Companies = () => {
     };
 
     const filteredCompanies = companies.filter(company => {
-        const matchesSearch = company.name.toLowerCase().includes(searchTerm.toLowerCase()) || company.description.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCategory = filters.category === 'all' || company.category === filters.category;
-        const matchesPlan = filters.plan === 'all' || company.plan === filters.plan;
+        const matchesSearch = company.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                             company.description?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = filters.category === 'all' || 
+                               company.category_id === filters.category ||
+                               (filters.category !== 'all' && categories.find(c => c.id === filters.category && c.id === company.category_id));
+        const matchesPlan = filters.plan === 'all' || 
+                           company.plan_type === filters.plan;
         const matchesStatus = filters.status ? company.status === true : true;
         return matchesSearch && matchesCategory && matchesPlan && matchesStatus;
     });
 
-    const premiumCompanies = filteredCompanies.filter(c => c.plan === 'Premium').sort((a,b) => b.id-a.id);
-    const otherCompanies = filteredCompanies.filter(c => c.plan !== 'Premium').sort((a,b) => b.id-a.id);
+    const premiumCompanies = filteredCompanies.filter(c => c.plan_type === 'premium').sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+    const otherCompanies = filteredCompanies.filter(c => c.plan_type !== 'premium').sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
     return (
         <div className="min-h-screen bg-gray-50 py-8">
@@ -119,7 +135,7 @@ const Companies = () => {
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="all">Todas</SelectItem>
-                                                    {categories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)}
+                                                    {categories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -150,26 +166,40 @@ const Companies = () => {
                     </div>
                 </motion.div>
 
+                {loading ? (
+                    <div className="flex justify-center items-center py-12">
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    </div>
+                ) : (
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}>
                     {premiumCompanies.length > 0 && (
                         <div className="mb-12">
                             <h2 className="text-2xl font-bold text-yellow-500 mb-6 border-b-2 border-yellow-200 pb-2 flex items-center"><Award className="mr-2"/> Empresas em Destaque</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {premiumCompanies.map((company) => (
+                                    {premiumCompanies.map((company) => {
+                                        const category = categories.find(c => c.id === company.category_id);
+                                        return (
                                     <motion.div key={company.id} whileHover={{ y: -5, boxShadow: '0 10px 15px -3px rgba(251, 191, 36, 0.2), 0 4px 6px -2px rgba(251, 191, 36, 0.1)' }}>
-                                        <Link to={`/guia-comercial/${company.slug}`} className="block bg-white rounded-lg shadow-md h-full transition-shadow border-2 border-yellow-400 relative overflow-hidden">
+                                                <Link to={`/empresa/${company.slug}`} className="block bg-white rounded-lg shadow-md h-full transition-shadow border-2 border-yellow-400 relative overflow-hidden">
                                             <Badge className="absolute top-2 right-2 bg-yellow-400 text-yellow-900">Premium</Badge>
                                             <CardContent className="p-6 flex items-center space-x-4">
-                                                <div className="text-4xl flex-shrink-0 w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">{company.logo}</div>
+                                                        {company.profile_image_url ? (
+                                                            <img src={company.profile_image_url} alt={company.name} className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
+                                                        ) : (
+                                                            <div className="text-4xl flex-shrink-0 w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                                                                {company.name?.charAt(0) || '?'}
+                                                            </div>
+                                                        )}
                                                 <div>
                                                     <h3 className="font-bold text-lg text-gray-900">{company.name}</h3>
-                                                    <p className="text-sm text-gray-500">{company.category}</p>
+                                                            <p className="text-sm text-gray-500">{category?.name || 'Sem categoria'}</p>
                                                     <p className="text-sm text-blue-600 hover:underline mt-1">Ver perfil</p>
                                                 </div>
                                             </CardContent>
                                         </Link>
                                     </motion.div>
-                                ))}
+                                        );
+                                    })}
                             </div>
                         </div>
                     )}
@@ -178,30 +208,42 @@ const Companies = () => {
                         <div className="mb-12">
                             <h2 className="text-2xl font-bold text-blue-800 mb-6 border-b-2 border-blue-200 pb-2">Demais Empresas</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {otherCompanies.map((company) => (
+                                    {otherCompanies.map((company) => {
+                                        const category = categories.find(c => c.id === company.category_id);
+                                        return (
                                     <motion.div key={company.id} whileHover={{ y: -5, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' }}>
-                                         <Link to={`/guia-comercial/${company.slug}`} className="block bg-white rounded-lg shadow-md h-full transition-shadow">
+                                                <Link to={`/empresa/${company.slug}`} className="block bg-white rounded-lg shadow-md h-full transition-shadow">
                                             <CardContent className="p-6 flex items-center space-x-4">
-                                                <div className="text-4xl flex-shrink-0 w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">{company.logo}</div>
+                                                        {company.profile_image_url ? (
+                                                            <img src={company.profile_image_url} alt={company.name} className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
+                                                        ) : (
+                                                            <div className="text-4xl flex-shrink-0 w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                                                                {company.name?.charAt(0) || '?'}
+                                                            </div>
+                                                        )}
                                                 <div>
                                                     <h3 className="font-bold text-lg text-gray-900">{company.name}</h3>
-                                                    <p className="text-sm text-gray-500">{company.category}</p>
+                                                            <p className="text-sm text-gray-500">{category?.name || 'Sem categoria'}</p>
                                                     <p className="text-sm text-blue-600 hover:underline mt-1">Ver perfil</p>
                                                 </div>
                                             </CardContent>
                                         </Link>
                                     </motion.div>
-                                ))}
+                                        );
+                                    })}
                             </div>
                         </div>
                     )}
-                     {filteredCompanies.length === 0 && (
-                        <div className="text-center py-16">
-                            <p className="text-xl text-gray-500">Nenhuma empresa encontrada com os filtros selecionados.</p>
+
+                        {filteredCompanies.length === 0 && !loading && (
+                            <div className="text-center py-12">
+                                <h3 className="text-xl font-semibold text-gray-900 mb-2">Nenhuma empresa encontrada</h3>
+                                <p className="text-gray-600 mb-4">Tente ajustar os filtros ou volte mais tarde!</p>
                             <Button onClick={resetFilters} className="mt-4">Limpar busca e filtros</Button>
                         </div>
                      )}
                 </motion.div>
+                )}
             </div>
         </div>
     );

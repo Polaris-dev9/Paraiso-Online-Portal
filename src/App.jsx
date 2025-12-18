@@ -170,8 +170,10 @@ import React from 'react';
                 <Route path="guia-comercial" element={<RoleGuard requiredRoles={['master', 'general_admin']}><AdminCommercialGuide /></RoleGuard>} />
                 <Route path="guia-profissional" element={<RoleGuard requiredRoles={['master', 'general_admin']}><AdminProfessionalGuide /></RoleGuard>} />
                 <Route path="noticias" element={<RoleGuard requiredRoles={['master', 'general_admin', 'content_admin']}><AdminPublishNews /></RoleGuard>} />
+                <Route path="publish-news" element={<Navigate to="/admin/noticias" replace />} />
                 <Route path="blog" element={<RoleGuard requiredRoles={['master', 'general_admin', 'content_admin']}><AdminBlog /></RoleGuard>} />
                 <Route path="eventos" element={<RoleGuard requiredRoles={['master', 'general_admin', 'content_admin']}><AdminManageEvents /></RoleGuard>} />
+                <Route path="manage-events" element={<Navigate to="/admin/eventos" replace />} />
                 <Route path="vagas" element={<RoleGuard requiredRoles={['master', 'general_admin']}><AdminModerateJobs /></RoleGuard>} />
                 <Route path="relatorios" element={<RoleGuard requiredRoles={['master', 'general_admin']}><AdminViewReports /></RoleGuard>} />
                 <Route path="treinamento" element={<RoleGuard requiredRoles={['master', 'general_admin']}><AdminTraining /></RoleGuard>} />
@@ -183,6 +185,7 @@ import React from 'react';
                 <Route path="forum" element={<RoleGuard requiredRoles={['master', 'general_admin']}><AdminForum /></RoleGuard>} />
                 <Route path="loja" element={<RoleGuard requiredRoles={['master', 'general_admin']}><AdminManageStore /></RoleGuard>} />
                 <Route path="assinantes" element={<RoleGuard requiredRoles={['master', 'general_admin']}><AdminManageSubscribers /></RoleGuard>} />
+                <Route path="manage-subscribers" element={<Navigate to="/admin/assinantes" replace />} />
                 <Route path="franquias" element={<RoleGuard requiredRoles={['master']}><AdminManageFranchises /></RoleGuard>} />
                 <Route path="equipe" element={<RoleGuard requiredRoles={['master']}><AdminTeamPermissions /></RoleGuard>} />
                 <Route path="paginas-premium" element={<RoleGuard requiredRoles={['master', 'general_admin']}><AdminManagePremiumPages /></RoleGuard>} />

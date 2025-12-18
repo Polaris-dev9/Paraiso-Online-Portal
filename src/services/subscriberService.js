@@ -360,15 +360,23 @@ export const subscriberService = {
    */
   async deactivateSubscriber(id) {
     try {
-      const { error } = await supabase
+      console.log('[subscriberService] Deactivating subscriber:', id);
+      const { data, error } = await supabase
         .from('subscribers')
         .update({ status: false })
-        .eq('id', id);
+        .eq('id', id)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[subscriberService] Supabase error:', error);
+        throw error;
+      }
+
+      console.log('[subscriberService] Subscriber deactivated successfully:', data);
+      return data;
     } catch (error) {
-      console.error('Error deactivating subscriber:', error);
-      throw new Error('Erro ao desativar assinante: ' + error.message);
+      console.error('[subscriberService] Error deactivating subscriber:', error);
+      throw new Error('Erro ao desativar assinante: ' + (error.message || 'Erro desconhecido'));
     }
   },
 
@@ -388,6 +396,32 @@ export const subscriberService = {
     } catch (error) {
       console.error('Error activating subscriber:', error);
       throw new Error('Erro ao ativar assinante: ' + error.message);
+    }
+  },
+
+  /**
+   * Deleta permanentemente um assinante (hard delete)
+   * @param {string} id - ID do assinante
+   * @returns {Promise<void>}
+   */
+  async deleteSubscriber(id) {
+    try {
+      console.log('[subscriberService] Deleting subscriber permanently:', id);
+      const { error } = await supabase
+        .from('subscribers')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('[subscriberService] Supabase error:', error);
+        throw error;
+      }
+
+      console.log('[subscriberService] Subscriber deleted successfully');
+      return true;
+    } catch (error) {
+      console.error('[subscriberService] Error deleting subscriber:', error);
+      throw new Error('Erro ao deletar assinante: ' + (error.message || 'Erro desconhecido'));
     }
   }
 };

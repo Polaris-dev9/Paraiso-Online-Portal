@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
     }, []);
 
-    const login = (email, password) => {
+    const login = async (email, password) => {
         let userData = null;
         if (email === 'master@portalparaisoonline.com.br' && password === '@@321adm') {
             userData = { email, role: 'master' };
@@ -58,6 +58,36 @@ export const AuthProvider = ({ children }) => {
         }
 
         if (userData) {
+            // Tentar fazer login no Supabase Auth para ter sessão válida
+            // Isso permite que o Storage reconheça o usuário como autenticado
+            try {
+                // Primeiro, tentar fazer sign in com as credenciais
+                // Se o usuário não existir no Supabase Auth, vamos criar uma sessão manual
+                const { data: { session }, error: signInError } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (signInError) {
+                    // Se o login falhar (usuário não existe), criar uma sessão manual usando admin API
+                    // Mas para isso precisaríamos do service role key, que não devemos usar no frontend
+                    // Alternativa: usar signInAnonymously ou criar o usuário primeiro
+                    console.warn('[AuthContext] Supabase Auth login failed, but continuing with local auth:', signInError.message);
+                    // Continuar com login local mesmo sem sessão Supabase Auth
+                    // O upload de imagens pode não funcionar, mas o resto do sistema funciona
+                } else {
+                    console.log('[AuthContext] Supabase Auth session created:', session?.user?.id);
+                    // Adicionar o ID do usuário do Supabase ao userData
+                    if (session?.user) {
+                        userData.id = session.user.id;
+                        userData.supabaseUser = session.user;
+                    }
+                }
+            } catch (authError) {
+                console.error('[AuthContext] Error during Supabase Auth login:', authError);
+                // Continuar com login local mesmo se houver erro
+            }
+
             setUser(userData);
             sessionStorage.setItem('ppo_user', JSON.stringify(userData));
             logToAudit('admin_login_success', { email });
