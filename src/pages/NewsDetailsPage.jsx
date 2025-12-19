@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
-import { Calendar, User, Eye, MessageSquare, Share2, Send, Loader2, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
+import { Calendar, User, MessageSquare, Share2, Send, Loader2, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,17 +12,24 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { newsService } from '@/services/newsService';
 import { categoryService } from '@/services/categoryService';
+import { commentService } from '@/services/commentService';
+import { useAuth } from '@/contexts/AuthContext';
 
 const NewsDetailsPage = () => {
     const { slug } = useParams();
     const { toast } = useToast();
+    const { user } = useAuth();
     const [news, setNews] = useState(null);
     const [category, setCategory] = useState(null);
     const [loading, setLoading] = useState(true);
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
+    const [submittingComment, setSubmittingComment] = useState(false);
+    const hasIncrementedViews = useRef(false);
 
     useEffect(() => {
+        // Reset flag when slug changes
+        hasIncrementedViews.current = false;
         loadNews();
     }, [slug]);
 
@@ -34,8 +41,14 @@ const NewsDetailsPage = () => {
             if (newsData) {
                 setNews(newsData);
                 
-                // Incrementar visualizações
-                await newsService.incrementViews(newsData.id);
+                // Incrementar visualizações apenas uma vez por carregamento
+                if (!hasIncrementedViews.current) {
+                    hasIncrementedViews.current = true;
+                    await newsService.incrementViews(newsData.id);
+                }
+                
+                // Carregar comentários
+                loadComments(newsData.id);
                 
                 // Carregar categoria se existir
                 if (newsData.category_id) {
@@ -54,20 +67,70 @@ const NewsDetailsPage = () => {
         }
     };
 
+    const loadComments = async (newsId) => {
+        const data = await commentService.getComments('news', newsId);
+        setComments(data);
+    };
+
     const handleShare = () => {
         navigator.clipboard.writeText(window.location.href);
         toast({ title: '🔗 Link Copiado!', description: 'O link da notícia foi copiado.' });
     };
 
-    const handleCommentSubmit = (e) => {
+    const handleCommentSubmit = async (e) => {
         e.preventDefault();
         if (!newComment.trim()) return;
         
-        toast({
-            title: '💬 Comentário Enviado!',
-            description: 'Seu comentário foi enviado para moderação. Obrigado por participar!',
-        });
-        setNewComment('');
+        const commentText = newComment.trim(); // Save the text before clearing
+        const commentAuthorName = user?.user_metadata?.full_name || user?.name || 'Visitante';
+        const tempCommentId = Date.now();
+        
+        try {
+            setSubmittingComment(true);
+            
+            // Para confirmação visual imediata
+            const tempComment = {
+                id: tempCommentId,
+                content: commentText,
+                author_name: commentAuthorName,
+                status: 'pending',
+                created_at: new Date().toISOString()
+            };
+
+            // Adicionar ao estado local para confirmação instantânea
+            setComments(prev => [tempComment, ...prev]);
+            setNewComment(''); // Clear input after saving the text
+
+            // Save to database
+            await commentService.createComment({
+                content: commentText,
+                author_name: commentAuthorName,
+                author_email: user?.email || '',
+                target_type: 'news',
+                target_id: news.id,
+                user_id: user?.id
+            });
+            
+            // Reload comments from database to get the real comment with proper ID
+            await loadComments(news.id);
+        
+            toast({
+                title: '💬 Comentário Enviado!',
+                description: 'Seu comentário foi enviado para moderação e aparecerá em breve.',
+            });
+        } catch (error) {
+            console.error('Error submitting comment:', error);
+            // Remove the temporary comment if save failed
+            setComments(prev => prev.filter(c => c.id !== tempCommentId));
+            setNewComment(commentText); // Restore the text so user can try again
+            toast({
+                variant: "destructive",
+                title: 'Erro',
+                description: 'Não foi possível enviar seu comentário.',
+            });
+        } finally {
+            setSubmittingComment(false);
+        }
     };
 
     if (loading) {
@@ -115,18 +178,14 @@ const NewsDetailsPage = () => {
                                     </span>
                                 )}
                                 <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mt-3">{news.title}</h1>
-                                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-gray-500 mt-4 text-sm">
-                                    {date && (
+                                {date && (
+                                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-gray-500 mt-4 text-sm">
                                         <span className="flex items-center">
                                             <Calendar size={14} className="mr-1.5" /> 
                                             {new Date(date).toLocaleDateString('pt-BR')}
                                         </span>
-                                    )}
-                                    <span className="flex items-center">
-                                        <Eye size={14} className="mr-1.5" /> 
-                                        {news.views_count || 0} visualizações
-                                    </span>
-                                </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Banner Superior se existir */}
@@ -218,16 +277,32 @@ const NewsDetailsPage = () => {
                                 <CardHeader><CardTitle>Comentários ({comments.length})</CardTitle></CardHeader>
                                 <CardContent>
                                     <form onSubmit={handleCommentSubmit} className="space-y-4 mb-6">
-                                        <Textarea placeholder="Deixe seu comentário..." value={newComment} onChange={(e) => setNewComment(e.target.value)} />
-                                        <Button type="submit" className="w-full gradient-royal text-white"><Send className="mr-2" /> Enviar Comentário</Button>
+                                        <Textarea 
+                                            placeholder="Deixe seu comentário..." 
+                                            value={newComment} 
+                                            onChange={(e) => setNewComment(e.target.value)} 
+                                            disabled={submittingComment}
+                                        />
+                                        <Button type="submit" className="w-full gradient-royal text-white" disabled={submittingComment}>
+                                            {submittingComment ? <Loader2 className="animate-spin mr-2" size={16} /> : <Send className="mr-2" size={16} />}
+                                            Enviar Comentário
+                                        </Button>
                                     </form>
                                     <div className="space-y-4 max-h-96 overflow-y-auto">
                                         {comments.map(comment => (
-                                            <div key={comment.id} className="flex items-start gap-3">
-                                                <Avatar><AvatarImage src={comment.avatar} /><AvatarFallback>{comment.author.charAt(0)}</AvatarFallback></Avatar>
+                                            <div key={comment.id} className={`flex items-start gap-3 ${comment.status === 'pending' ? 'opacity-60' : ''}`}>
+                                                <Avatar>
+                                                    <AvatarImage src={comment.author_avatar} />
+                                                    <AvatarFallback>{(comment.author_name || 'V').charAt(0)}</AvatarFallback>
+                                                </Avatar>
                                                 <div className="bg-gray-100 rounded-lg p-3 flex-1">
-                                                    <p className="font-semibold text-sm">{comment.author}</p>
-                                                    <p className="text-sm text-gray-700">{comment.text}</p>
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <p className="font-semibold text-sm">{comment.author_name || 'Visitante'}</p>
+                                                        {comment.status === 'pending' && (
+                                                            <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 rounded uppercase font-bold">Pendente</span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-sm text-gray-700">{comment.content}</p>
                                                 </div>
                                             </div>
                                         ))}

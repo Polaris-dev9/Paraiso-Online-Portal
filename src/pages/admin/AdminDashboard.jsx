@@ -37,6 +37,7 @@ const AdminDashboard = () => {
                 { to: '/admin/noticias', icon: Newspaper, title: 'Notícias e Matérias', description: 'Publique e gerencie notícias.', color: '#0ea5e9', roles: ['master', 'general_admin', 'content_admin'] },
                 { to: '/admin/blog', icon: Rss, title: 'Colunas e Artigos', description: 'Gerencie o blog e colunistas.', color: '#f97316', roles: ['master', 'general_admin', 'content_admin'] },
                 { to: '/admin/eventos', icon: Calendar, title: 'Eventos', description: 'Adicione e atualize eventos.', color: '#8b5cf6', roles: ['master', 'general_admin', 'content_admin'] },
+                { to: '/admin/comentarios', icon: MessageSquare, title: 'Moderar Comentários', description: 'Aprove, rejeite ou exclua comentários de notícias e eventos.', color: '#6366f1', roles: ['master', 'general_admin', 'content_admin'] },
                 { to: '/admin/media', icon: ImageIcon, title: 'Galeria', description: 'Gerencie a galeria de mídia.', color: '#10b981', roles: ['master', 'general_admin', 'content_admin'] },
             ]
         },

@@ -352,6 +352,20 @@ export const eventService = {
   },
 
   /**
+   * Incrementa contador de visualizações usando RPC
+   * @param {string} eventId - ID do evento
+   * @returns {Promise<void>}
+   */
+  async incrementViews(eventId) {
+    try {
+      const { error } = await supabase.rpc('increment_event_views', { event_id: eventId });
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error incrementing event views:', error);
+    }
+  },
+
+  /**
    * Despublica um evento
    * @param {string} eventId - ID do evento
    * @returns {Promise<Object>} Evento atualizado

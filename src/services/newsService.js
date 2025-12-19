@@ -328,21 +328,17 @@ export const newsService = {
   },
 
   /**
-   * Incrementa contador de visualizações
+   * Incrementa contador de visualizações usando RPC
    * @param {string} newsId - ID da notícia
    * @returns {Promise<void>}
    */
   async incrementViews(newsId) {
     try {
-      const { data: news } = await this.getNewsById(newsId);
-      if (news) {
-        await this.updateNews(newsId, {
-          views_count: (news.views_count || 0) + 1
-        });
-      }
+      // Usar a função RPC que criamos (mais seguro e ignora RLS de update)
+      const { error } = await supabase.rpc('increment_news_views', { news_id: newsId });
+      if (error) throw error;
     } catch (error) {
       console.error('Error incrementing news views:', error);
-      // Não lançar erro, apenas logar (não é crítico)
     }
   },
 

@@ -77,6 +77,7 @@ import React from 'react';
     import AdminBlog from '@/pages/admin/AdminBlog';
     import AdminManageEvents from '@/pages/admin/AdminManageEvents';
     import AdminModerateJobs from '@/pages/admin/AdminModerateJobs';
+    import AdminModerateComments from '@/pages/admin/AdminModerateComments';
     import AdminManageStore from '@/pages/admin/AdminManageStore';
     import AdminViewReports from '@/pages/admin/AdminViewReports';
     import AdminTeamPermissions from '@/pages/admin/AdminTeamPermissions';
@@ -175,6 +176,7 @@ import React from 'react';
                 <Route path="eventos" element={<RoleGuard requiredRoles={['master', 'general_admin', 'content_admin']}><AdminManageEvents /></RoleGuard>} />
                 <Route path="manage-events" element={<Navigate to="/admin/eventos" replace />} />
                 <Route path="vagas" element={<RoleGuard requiredRoles={['master', 'general_admin']}><AdminModerateJobs /></RoleGuard>} />
+                <Route path="comentarios" element={<RoleGuard requiredRoles={['master', 'general_admin', 'content_admin']}><AdminModerateComments /></RoleGuard>} />
                 <Route path="relatorios" element={<RoleGuard requiredRoles={['master', 'general_admin']}><AdminViewReports /></RoleGuard>} />
                 <Route path="treinamento" element={<RoleGuard requiredRoles={['master', 'general_admin']}><AdminTraining /></RoleGuard>} />
                 <Route path="configuracoes" element={<RoleGuard requiredRoles={['master']}><AdminGeneralSettings /></RoleGuard>} />
