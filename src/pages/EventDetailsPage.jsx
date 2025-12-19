@@ -1,25 +1,36 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
-import { Calendar, MapPin, Users, Share2, ChevronLeft, Check, Ticket, Image as ImageIcon, Video, Loader2, Link as LinkIcon } from 'lucide-react';
+import { Calendar, MapPin, Users, Share2, ChevronLeft, Check, Ticket, Image as ImageIcon, Video, Loader2, Link as LinkIcon, Send, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import Breadcrumbs from '@/components/common/Breadcrumbs';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Textarea } from '@/components/ui/textarea';
 import { eventService } from '@/services/eventService';
 import { categoryService } from '@/services/categoryService';
+import { commentService } from '@/services/commentService';
+import { useAuth } from '@/contexts/AuthContext';
 
 const EventDetailsPage = () => {
     const { slug } = useParams();
     const { toast } = useToast();
+    const { user } = useAuth();
     const [event, setEvent] = useState(null);
     const [category, setCategory] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isRegistered, setIsRegistered] = useState(false);
+    const [comments, setComments] = useState([]);
+    const [newComment, setNewComment] = useState('');
+    const [submittingComment, setSubmittingComment] = useState(false);
+    const hasIncrementedViews = useRef(false);
 
     useEffect(() => {
+        // Reset flag when slug changes
+        hasIncrementedViews.current = false;
         loadEvent();
     }, [slug]);
 
@@ -30,6 +41,15 @@ const EventDetailsPage = () => {
             
             if (eventData) {
                 setEvent(eventData);
+                
+                // Incrementar visualizações apenas uma vez por carregamento
+                if (!hasIncrementedViews.current) {
+                    hasIncrementedViews.current = true;
+                    await eventService.incrementViews(eventData.id);
+                }
+                
+                // Carregar comentários
+                loadComments(eventData.id);
                 
                 // Carregar categoria se existir
                 if (eventData.category_id) {
@@ -48,6 +68,11 @@ const EventDetailsPage = () => {
         }
     };
 
+    const loadComments = async (eventId) => {
+        const data = await commentService.getComments('event', eventId);
+        setComments(data);
+    };
+
     const handleShare = () => {
         navigator.clipboard.writeText(window.location.href);
         toast({ title: '🔗 Link Copiado!', description: 'O link do evento foi copiado.' });
@@ -60,6 +85,62 @@ const EventDetailsPage = () => {
             description: `Você confirmou presença no evento "${event.title}".`,
             className: 'bg-green-500 text-white',
         });
+    };
+
+    const handleCommentSubmit = async (e) => {
+        e.preventDefault();
+        if (!newComment.trim()) return;
+        
+        const commentText = newComment.trim(); // Save the text before clearing
+        const commentAuthorName = user?.user_metadata?.full_name || user?.name || 'Visitante';
+        const tempCommentId = Date.now();
+        
+        try {
+            setSubmittingComment(true);
+            
+            // Para confirmação visual imediata
+            const tempComment = {
+                id: tempCommentId,
+                content: commentText,
+                author_name: commentAuthorName,
+                status: 'pending',
+                created_at: new Date().toISOString()
+            };
+
+            // Adicionar ao estado local
+            setComments(prev => [tempComment, ...prev]);
+            setNewComment(''); // Clear input after saving the text
+
+            // Save to database
+            await commentService.createComment({
+                content: commentText,
+                author_name: commentAuthorName,
+                author_email: user?.email || '',
+                target_type: 'event',
+                target_id: event.id,
+                user_id: user?.id
+            });
+            
+            // Reload comments from database to get the real comment with proper ID
+            await loadComments(event.id);
+
+            toast({
+                title: '💬 Comentário Enviado!',
+                description: 'Seu comentário foi enviado para moderação e aparecerá em breve.',
+            });
+        } catch (error) {
+            console.error('Error submitting comment:', error);
+            // Remove the temporary comment if save failed
+            setComments(prev => prev.filter(c => c.id !== tempCommentId));
+            setNewComment(commentText); // Restore the text so user can try again
+            toast({
+                variant: "destructive",
+                title: 'Erro',
+                description: 'Não foi possível enviar seu comentário.',
+            });
+        } finally {
+            setSubmittingComment(false);
+        }
     };
 
     if (loading) {
@@ -149,6 +230,10 @@ const EventDetailsPage = () => {
                                                 <Users size={16} className="mr-1.5" /> {registered} de {capacity}
                                             </span>
                                         )}
+                                        <span className="flex items-center">
+                                            <Eye size={16} className="mr-1.5" /> 
+                                            {event.views_count || 0} visualizações
+                                        </span>
                                     </div>
                                     <div className="prose max-w-none text-lg text-gray-800 leading-relaxed">
                                         <p className="whitespace-pre-wrap font-medium text-gray-600 border-l-4 border-purple-600 pl-4 mb-6">{event.description}</p>
@@ -228,6 +313,44 @@ const EventDetailsPage = () => {
                                             <p className="text-sm text-gray-500">
                                                 Mapa interativo indisponível no momento. Use o endereço acima para encontrar o local no seu app de mapas favorito.
                                             </p>
+                                        </CardContent>
+                                    </Card>
+
+                                    <Card>
+                                        <CardHeader><CardTitle className="text-xl">Comentários ({comments.length})</CardTitle></CardHeader>
+                                        <CardContent>
+                                            <form onSubmit={handleCommentSubmit} className="space-y-4 mb-6">
+                                                <Textarea 
+                                                    placeholder="Deixe seu comentário ou dúvida..." 
+                                                    value={newComment} 
+                                                    onChange={(e) => setNewComment(e.target.value)} 
+                                                    disabled={submittingComment}
+                                                />
+                                                <Button type="submit" className="w-full gradient-royal text-white" disabled={submittingComment}>
+                                                    {submittingComment ? <Loader2 className="animate-spin mr-2" size={16} /> : <Send className="mr-2" size={16} />}
+                                                    Enviar Comentário
+                                                </Button>
+                                            </form>
+                                            <div className="space-y-4 max-h-96 overflow-y-auto">
+                                                {comments.map(comment => (
+                                                    <div key={comment.id} className={`flex items-start gap-3 ${comment.status === 'pending' ? 'opacity-60' : ''}`}>
+                                                        <Avatar>
+                                                            <AvatarImage src={comment.author_avatar} />
+                                                            <AvatarFallback>{(comment.author_name || 'V').charAt(0)}</AvatarFallback>
+                                                        </Avatar>
+                                                        <div className="bg-gray-100 rounded-lg p-3 flex-1">
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <p className="font-semibold text-sm">{comment.author_name || 'Visitante'}</p>
+                                                                {comment.status === 'pending' && (
+                                                                    <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 rounded uppercase font-bold">Pendente</span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-sm text-gray-700">{comment.text || comment.content}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {comments.length === 0 && <p className="text-sm text-gray-500 text-center">Nenhum comentário ainda. Seja o primeiro!</p>}
+                                            </div>
                                         </CardContent>
                                     </Card>
                                 </div>
