@@ -17,9 +17,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { categoryService } from '@/services/categoryService';
+import { subscriberService } from '@/services/subscriberService';
+import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 
 const AdminCommercialGuide = () => {
     const { toast } = useToast();
+    const { signUp } = useSupabaseAuth();
     
     const [companies, setCompanies] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -30,10 +33,16 @@ const AdminCommercialGuide = () => {
     const [loading, setLoading] = useState(true);
     const [categoriesLoading, setCategoriesLoading] = useState(false);
     const [isDeletingCategory, setIsDeletingCategory] = useState(null);
+    const [savingCompany, setSavingCompany] = useState(false);
 
-    // Carregar categorias do Supabase
+    // Carregar categorias primeiro, depois empresas
     useEffect(() => {
-        loadCategories();
+        const initialize = async () => {
+            await loadCategories();
+            // Carregar empresas após categorias
+            await loadCompanies();
+        };
+        initialize();
     }, []);
 
     const loadCategories = async () => {
@@ -59,44 +68,224 @@ const AdminCommercialGuide = () => {
             });
         } finally {
             setCategoriesLoading(false);
+        }
+    };
+
+    const loadCompanies = async () => {
+        try {
+            setLoading(true);
+            // Buscar empresas do banco de dados (profile_type='empresarial')
+            const data = await subscriberService.getAllSubscribers({
+                profile_type: 'empresarial'
+            });
+            
+            // Enriquecer com nome da categoria
+            const companiesWithCategories = await Promise.all(
+                data.map(async (company) => {
+                    let categoryName = '';
+                    if (company.category_id) {
+                        // Primeiro tentar buscar do cache de categorias
+                        const category = categories.find(c => c.id === company.category_id);
+                        if (category) {
+                            categoryName = category.name;
+                        } else {
+                            // Se não encontrou no cache, buscar do banco
+                            try {
+                                const catData = await categoryService.getCategoryById(company.category_id);
+                                categoryName = catData?.name || '';
+                            } catch (err) {
+                                console.warn('Error loading category for company:', err);
+                            }
+                        }
+                    }
+                    return {
+                        ...company,
+                        category: categoryName || company.category_name || 'Sem categoria'
+                    };
+                })
+            );
+            
+            setCompanies(companiesWithCategories);
+        } catch (error) {
+            console.error('Error loading companies:', error);
+            toast({
+                variant: "destructive",
+                title: "Erro ao carregar empresas",
+                description: error.message || "Não foi possível carregar as empresas."
+            });
+            setCompanies([]);
+        } finally {
             setLoading(false);
         }
     };
 
-    // Manter empresas em localStorage por enquanto (será migrado depois)
-    useEffect(() => {
-        const storedCompanies = JSON.parse(localStorage.getItem('ppo_companies')) || [];
-        setCompanies(storedCompanies);
-    }, []);
-
     const saveData = (key, data) => localStorage.setItem(key, JSON.stringify(data));
 
-    const filteredCompanies = useMemo(() => 
-        companies.filter(c => 
-            c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            c.category.toLowerCase().includes(searchTerm.toLowerCase())
-        ), [companies, searchTerm]);
+    const filteredCompanies = useMemo(() => {
+        if (!searchTerm) return companies;
+        const searchLower = searchTerm.toLowerCase();
+        return companies.filter(c => 
+            (c.name && c.name.toLowerCase().includes(searchLower)) || 
+            (c.category && c.category.toLowerCase().includes(searchLower)) ||
+            (c.email && c.email.toLowerCase().includes(searchLower))
+        );
+    }, [companies, searchTerm]);
 
     const handleOpenForm = (company = null) => {
-        const defaultCompany = { name: '', category: '', plan: 'Gratuito', status: true, password: '', description: '' };
+        const defaultCompany = { name: '', email: '', password: '', category: '', category_id: null, plan: 'Gratuito', status: true, description: '', phone: '' };
         setCurrentCompany(company ? { ...defaultCompany, ...company } : defaultCompany);
         setIsFormOpen(true);
     };
 
-    const handleSaveCompany = (e) => {
+    const handleSaveCompany = async (e) => {
         e.preventDefault();
-        const updatedCompanies = currentCompany.id ? companies.map(c => c.id === currentCompany.id ? currentCompany : c) : [...companies, { ...currentCompany, id: Date.now() }];
-        setCompanies(updatedCompanies);
-        saveData('ppo_companies', updatedCompanies);
-        setIsFormOpen(false);
-        toast({ title: "Cadastro salvo com sucesso!", description: `Empresa ${currentCompany.id ? 'atualizada' : 'criada'}.` });
+        
+        // Validações
+        if (!currentCompany.name || currentCompany.name.trim() === '') {
+            toast({
+                variant: "destructive",
+                title: "Campo obrigatório",
+                description: "Por favor, preencha o nome da empresa."
+            });
+            return;
+        }
+
+        if (!currentCompany.email || currentCompany.email.trim() === '') {
+            toast({
+                variant: "destructive",
+                title: "Campo obrigatório",
+                description: "Por favor, preencha o email da empresa."
+            });
+            return;
+        }
+
+        if (!currentCompany.password || currentCompany.password.length < 6) {
+            toast({
+                variant: "destructive",
+                title: "Senha inválida",
+                description: "A senha deve ter pelo menos 6 caracteres."
+            });
+            return;
+        }
+
+        if (!currentCompany.category && !currentCompany.category_id) {
+            toast({
+                variant: "destructive",
+                title: "Campo obrigatório",
+                description: "Por favor, selecione uma categoria."
+            });
+            return;
+        }
+
+        setSavingCompany(true);
+
+        try {
+            // Encontrar category_id se foi selecionado por nome
+            let categoryId = currentCompany.category_id;
+            if (!categoryId && currentCompany.category) {
+                const foundCategory = categories.find(c => c.name === currentCompany.category || c.id === currentCompany.category);
+                categoryId = foundCategory?.id || null;
+            }
+
+            // Criar subscriber no banco de dados
+            const subscriberData = {
+                name: currentCompany.name.trim(),
+                email: currentCompany.email.trim().toLowerCase(),
+                phone: currentCompany.phone?.replace(/\D/g, '') || null,
+                description: currentCompany.description?.trim() || null,
+                profile_type: 'empresarial',
+                plan_type: currentCompany.plan === 'Gratuito' ? 'gratuito' : 'essencial',
+                payment_status: currentCompany.plan === 'Gratuito' ? 'free' : 'pending',
+                status: currentCompany.status,
+                category_id: categoryId
+            };
+
+            const newSubscriber = await subscriberService.createSubscriber(subscriberData);
+
+            // Tentar criar usuário no Supabase Auth
+            // Nota: Isso pode requerer confirmação de email dependendo das configurações do Supabase
+            try {
+                const { data: signUpData, error: signUpError } = await signUp(
+                    currentCompany.email.trim().toLowerCase(),
+                    currentCompany.password,
+                    { 
+                        full_name: currentCompany.name,
+                        subscriber_id: newSubscriber.id 
+                    }
+                );
+
+                if (signUpError) {
+                    console.warn('Erro ao criar usuário no Auth (pode ser normal se email já existe):', signUpError);
+                    // Continuar mesmo se falhar - o subscriber já foi criado
+                    toast({
+                        title: "✅ Empresa criada!",
+                        description: `Empresa "${currentCompany.name}" foi criada. ${signUpError.message?.includes('already registered') ? 'Usuário já existe - use as credenciais existentes para login.' : 'Nota: Pode ser necessário criar o usuário manualmente no Supabase Auth.'}`,
+                        duration: 8000
+                    });
+                } else {
+                    // Atualizar subscriber com user_id se o usuário foi criado
+                    if (signUpData?.user?.id && newSubscriber.id) {
+                        try {
+                            await subscriberService.updateSubscriber(newSubscriber.id, {
+                                user_id: signUpData.user.id
+                            });
+                        } catch (updateError) {
+                            console.warn('Erro ao atualizar user_id:', updateError);
+                        }
+                    }
+
+                    toast({
+                        title: "✅ Empresa criada com sucesso!",
+                        description: `Empresa "${currentCompany.name}" e credenciais de login foram criadas. ${signUpData?.user?.email_confirmed_at ? 'Usuário pronto para login!' : 'Verifique o email para confirmar a conta antes de fazer login.'}`,
+                        duration: 8000
+                    });
+                }
+            } catch (authError) {
+                console.error('Erro ao criar usuário:', authError);
+                toast({
+                    title: "⚠️ Empresa criada, mas usuário não foi criado",
+                    description: `Empresa "${currentCompany.name}" foi criada no banco, mas houve um erro ao criar o usuário de autenticação. Você pode criar o usuário manualmente no Supabase Dashboard (Authentication > Users) com email: ${currentCompany.email} e senha: ${currentCompany.password}`,
+                    duration: 10000
+                });
+            }
+
+            // Recarregar lista de empresas do banco de dados
+            await loadCompanies();
+
+            setIsFormOpen(false);
+            
+        } catch (error) {
+            console.error('Error saving company:', error);
+            toast({
+                variant: "destructive",
+                title: "Erro ao salvar empresa",
+                description: error.message || "Não foi possível salvar a empresa. Tente novamente."
+            });
+        } finally {
+            setSavingCompany(false);
+        }
     };
 
-    const handleDeleteCompany = (id) => {
-        const updatedCompanies = companies.filter(c => c.id !== id);
-        setCompanies(updatedCompanies);
-        saveData('ppo_companies', updatedCompanies);
-        toast({ title: "Registro desativado!", description: "A empresa foi removida." });
+    const handleDeleteCompany = async (id) => {
+        try {
+            // Desativar empresa no banco de dados (não deletar, apenas desativar)
+            await subscriberService.updateSubscriber(id, { status: false });
+            
+            // Recarregar lista
+            await loadCompanies();
+            
+            toast({ 
+                title: "✅ Empresa desativada!", 
+                description: "A empresa foi desativada com sucesso." 
+            });
+        } catch (error) {
+            console.error('Error deleting company:', error);
+            toast({
+                variant: "destructive",
+                title: "Erro ao desativar empresa",
+                description: error.message || "Não foi possível desativar a empresa."
+            });
+        }
     };
 
     const handleAddCategory = async () => {
@@ -161,14 +350,31 @@ const AdminCommercialGuide = () => {
         }
     };
 
-    const toggleCompanyStatus = (companyId) => {
-        const updatedCompanies = companies.map(c => 
-            c.id === companyId ? { ...c, status: !c.status } : c
-        );
-        setCompanies(updatedCompanies);
-        saveData('ppo_companies', updatedCompanies);
-        const company = companies.find(c => c.id === companyId);
-        toast({ title: "Alteração aplicada!", description: `Status de "${company.name}" alterado para ${!company.status ? 'Ativo' : 'Inativo'}.` });
+    const toggleCompanyStatus = async (companyId) => {
+        try {
+            const company = companies.find(c => c.id === companyId);
+            if (!company) return;
+
+            const newStatus = !company.status;
+            
+            // Atualizar no banco de dados
+            await subscriberService.updateSubscriber(companyId, { status: newStatus });
+            
+            // Recarregar lista
+            await loadCompanies();
+            
+            toast({ 
+                title: "✅ Alteração aplicada!", 
+                description: `Status de "${company.name}" alterado para ${newStatus ? 'Ativo' : 'Inativo'}.` 
+            });
+        } catch (error) {
+            console.error('Error toggling company status:', error);
+            toast({
+                variant: "destructive",
+                title: "Erro ao alterar status",
+                description: error.message || "Não foi possível alterar o status da empresa."
+            });
+        }
     };
     
     return (
@@ -200,7 +406,21 @@ const AdminCommercialGuide = () => {
                                         <TableHead className="text-right text-gray-800 font-semibold">Ações</TableHead>
                                     </TableRow></TableHeader>
                                     <TableBody>
-                                        {filteredCompanies.map(company => (
+                                        {loading ? (
+                                            <TableRow>
+                                                <TableCell colSpan={4} className="text-center py-8">
+                                                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-500" />
+                                                    <p className="text-gray-500 mt-2">Carregando empresas...</p>
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : filteredCompanies.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                                                    {searchTerm ? 'Nenhuma empresa encontrada com os filtros aplicados.' : 'Nenhuma empresa cadastrada. Clique em "Adicionar Empresa" para começar.'}
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            filteredCompanies.map(company => (
                                             <TableRow key={company.id} className="border-b border-gray-300">
                                                 <TableCell className="font-medium text-gray-900">{company.name}</TableCell>
                                                 <TableCell className="text-gray-700">{company.category}</TableCell>
@@ -230,7 +450,8 @@ const AdminCommercialGuide = () => {
                                                     </AlertDialog>
                                                 </div></TableCell>
                                             </TableRow>
-                                        ))}
+                                            ))
+                                        )}
                                     </TableBody>
                                 </Table></div>
                             </CardContent>
@@ -346,11 +567,60 @@ const AdminCommercialGuide = () => {
                 <DialogContent className="max-w-[90vw] md:max-w-4xl border-gray-400 bg-gray-100">
                     <DialogHeader><DialogTitle className="text-gray-900 text-2xl">{currentCompany?.id ? 'Editar' : 'Adicionar'} Empresa</DialogTitle></DialogHeader>
                     {currentCompany && <form onSubmit={handleSaveCompany} className="max-h-[75vh] overflow-y-auto pr-4 space-y-4">
-                        <Label htmlFor="name" className="text-gray-800">Nome da Empresa</Label><Input id="name" value={currentCompany.name} onChange={(e) => setCurrentCompany({...currentCompany, name: e.target.value})} className="border-gray-400 bg-white" placeholder="Ex: Restaurante Sabor Divino"/>
-                        <Label htmlFor="category" className="text-gray-800">Categoria</Label>
+                        <Label htmlFor="name" className="text-gray-800">Nome da Empresa <span className="text-red-500">*</span></Label>
+                        <Input 
+                            id="name" 
+                            value={currentCompany.name} 
+                            onChange={(e) => setCurrentCompany({...currentCompany, name: e.target.value})} 
+                            className="border-gray-400 bg-white" 
+                            placeholder="Ex: Restaurante Sabor Divino"
+                            required
+                        />
+                        
+                        <Label htmlFor="email" className="text-gray-800">E-mail para Login <span className="text-red-500">*</span></Label>
+                        <Input 
+                            id="email" 
+                            type="email"
+                            value={currentCompany.email} 
+                            onChange={(e) => setCurrentCompany({...currentCompany, email: e.target.value})} 
+                            className="border-gray-400 bg-white" 
+                            placeholder="empresa@exemplo.com"
+                            required
+                        />
+                        
+                        <Label htmlFor="password" className="text-gray-800">Senha para Login <span className="text-red-500">*</span></Label>
+                        <Input 
+                            id="password" 
+                            type="password"
+                            value={currentCompany.password} 
+                            onChange={(e) => setCurrentCompany({...currentCompany, password: e.target.value})} 
+                            placeholder="Mínimo 6 caracteres"
+                            className="border-gray-400 bg-white"
+                            required
+                            minLength={6}
+                        />
+                        <p className="text-xs text-gray-500">Esta senha será usada para login na área do assinante</p>
+                        
+                        <Label htmlFor="phone" className="text-gray-800">Telefone</Label>
+                        <Input 
+                            id="phone" 
+                            value={currentCompany.phone || ''} 
+                            onChange={(e) => setCurrentCompany({...currentCompany, phone: e.target.value})} 
+                            className="border-gray-400 bg-white" 
+                            placeholder="(00) 00000-0000"
+                        />
+                        
+                        <Label htmlFor="category" className="text-gray-800">Categoria <span className="text-red-500">*</span></Label>
                         <Select 
-                            onValueChange={(v) => setCurrentCompany({...currentCompany, category: v})} 
-                            value={currentCompany.category}
+                            onValueChange={(v) => {
+                                const foundCategory = categories.find(c => c.name === v || c.id === v);
+                                setCurrentCompany({
+                                    ...currentCompany, 
+                                    category: foundCategory?.name || v,
+                                    category_id: foundCategory?.id || null
+                                });
+                            }} 
+                            value={currentCompany.category || currentCompany.category_id}
                         >
                             <SelectTrigger className="border-gray-400 bg-white">
                                 <SelectValue placeholder="Selecione uma categoria..." />
@@ -374,9 +644,50 @@ const AdminCommercialGuide = () => {
                                 )}
                             </SelectContent>
                         </Select>
-                        <Label htmlFor="password" className="text-gray-800">Senha de Admin</Label><Input id="password" value={currentCompany.password} onChange={(e) => setCurrentCompany({...currentCompany, password: e.target.value})} placeholder="Senha para o assinante editar sua página" className="border-gray-400 bg-white"/>
-                        <div className="flex items-center space-x-2"><Checkbox id="status" checked={currentCompany.status} onCheckedChange={(c) => setCurrentCompany({...currentCompany, status: c})} /><Label htmlFor="status">Ativa</Label></div>
-                        <DialogFooter className="mt-6 pt-4 border-t border-gray-300"><Button type="button" onClick={() => setIsFormOpen(false)} style={{backgroundColor: '#6c757d', color: '#fff'}}>Cancelar</Button><Button type="submit" style={{backgroundColor: '#28a745', color: '#fff'}}>Salvar</Button></DialogFooter>
+                        
+                        <Label htmlFor="description" className="text-gray-800">Descrição</Label>
+                        <Textarea 
+                            id="description" 
+                            value={currentCompany.description || ''} 
+                            onChange={(e) => setCurrentCompany({...currentCompany, description: e.target.value})} 
+                            className="border-gray-400 bg-white" 
+                            placeholder="Breve descrição da empresa..."
+                            rows={3}
+                        />
+                        
+                        <div className="flex items-center space-x-2">
+                            <Checkbox 
+                                id="status" 
+                                checked={currentCompany.status} 
+                                onCheckedChange={(c) => setCurrentCompany({...currentCompany, status: c})} 
+                            />
+                            <Label htmlFor="status">Ativa</Label>
+                        </div>
+                        
+                        <DialogFooter className="mt-6 pt-4 border-t border-gray-300">
+                            <Button 
+                                type="button" 
+                                onClick={() => setIsFormOpen(false)} 
+                                style={{backgroundColor: '#6c757d', color: '#fff'}}
+                                disabled={savingCompany}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button 
+                                type="submit" 
+                                style={{backgroundColor: '#28a745', color: '#fff'}}
+                                disabled={savingCompany}
+                            >
+                                {savingCompany ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Salvando...
+                                    </>
+                                ) : (
+                                    'Salvar'
+                                )}
+                            </Button>
+                        </DialogFooter>
                     </form>}
                 </DialogContent>
             </Dialog>
