@@ -671,44 +671,65 @@ const EditSubscriberProfile = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Seção de Imagens */}
-                    <Card className="shadow-lg mt-6">
-                        <CardHeader>
-                            <CardTitle className="text-2xl text-blue-800 flex items-center">
-                                <FileUp className="mr-2" />
-                                Imagens do Perfil
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            {user && (
-                                <>
-                                    <ImageUpload
-                                        label="Logo / Foto de Perfil"
-                                        imageType="profile"
-                                        userId={user.id}
-                                        currentImageUrl={profileImageUrl}
-                                        onImageChange={(url, path) => {
-                                            console.log('[EditProfile] Profile image changed:', { url, path });
-                                            setProfileImageUrl(url);
-                                        }}
-                                        maxSizeMB={5}
-                                    />
+                    {/* Seção de Imagens - Apenas para planos pagos */}
+                    {subscriber && subscriber.plan_type && subscriber.plan_type.toLowerCase() !== 'gratuito' && subscriber.plan_type.toLowerCase() !== 'free' ? (
+                        <Card className="shadow-lg mt-6">
+                            <CardHeader>
+                                <CardTitle className="text-2xl text-blue-800 flex items-center">
+                                    <FileUp className="mr-2" />
+                                    Imagens do Perfil
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                {user && (
+                                    <>
+                                        <ImageUpload
+                                            label="Logo / Foto de Perfil"
+                                            imageType="profile"
+                                            userId={user.id}
+                                            currentImageUrl={profileImageUrl}
+                                            onImageChange={(url, path) => {
+                                                console.log('[EditProfile] Profile image changed:', { url, path });
+                                                setProfileImageUrl(url);
+                                            }}
+                                            maxSizeMB={5}
+                                        />
 
-                                    <ImageUpload
-                                        label="Banner"
-                                        imageType="banner"
-                                        userId={user.id}
-                                        currentImageUrl={bannerImageUrl}
-                                        onImageChange={(url, path) => {
-                                            console.log('[EditProfile] Banner image changed:', { url, path });
-                                            setBannerImageUrl(url);
-                                        }}
-                                        maxSizeMB={5}
-                                    />
-                                </>
-                            )}
-                        </CardContent>
-                    </Card>
+                                        <ImageUpload
+                                            label="Banner"
+                                            imageType="banner"
+                                            userId={user.id}
+                                            currentImageUrl={bannerImageUrl}
+                                            onImageChange={(url, path) => {
+                                                console.log('[EditProfile] Banner image changed:', { url, path });
+                                                setBannerImageUrl(url);
+                                            }}
+                                            maxSizeMB={5}
+                                        />
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
+                    ) : subscriber && (subscriber.plan_type?.toLowerCase() === 'gratuito' || subscriber.plan_type?.toLowerCase() === 'free') ? (
+                        <Card className="shadow-lg mt-6 border-yellow-300 bg-yellow-50">
+                            <CardHeader>
+                                <CardTitle className="text-2xl text-yellow-800 flex items-center">
+                                    <FileUp className="mr-2" />
+                                    Imagens do Perfil
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+                                    <p className="text-yellow-800 font-medium mb-2">
+                                        ⚠️ Upload de imagens não disponível no plano gratuito
+                                    </p>
+                                    <p className="text-yellow-700 text-sm">
+                                        Para fazer upload de imagens (logo e banner), faça upgrade para um plano pago.
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ) : null}
 
                     {/* Seção de Galeria - Para planos Essencial+ */}
                     {subscriber && (subscriber.plan_type === 'essencial' || subscriber.plan_type === 'premium' || subscriber.plan_type === 'premium_vip') && (

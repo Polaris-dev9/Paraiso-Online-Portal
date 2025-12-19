@@ -256,12 +256,22 @@ const SubscriberPage = () => {
                     {subscriber.slug ? (
                         <motion.div whileHover={{ scale: 1.05 }}>
                             <a 
-                                href={`/empresa/${subscriber.slug}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="block h-full"
+                                href={subscriber.plan_type?.toLowerCase() === 'gratuito' || subscriber.plan_type?.toLowerCase() === 'free' ? '#' : `/empresa/${subscriber.slug}`}
+                                target={subscriber.plan_type?.toLowerCase() === 'gratuito' || subscriber.plan_type?.toLowerCase() === 'free' ? undefined : '_blank'}
+                                rel={subscriber.plan_type?.toLowerCase() === 'gratuito' || subscriber.plan_type?.toLowerCase() === 'free' ? undefined : 'noopener noreferrer'}
+                                onClick={(e) => {
+                                    if (subscriber.plan_type?.toLowerCase() === 'gratuito' || subscriber.plan_type?.toLowerCase() === 'free') {
+                                        e.preventDefault();
+                                        toast({
+                                            title: "Acesso Restrito",
+                                            description: "O plano gratuito não permite visualizar sua página pública. Faça upgrade para um plano pago.",
+                                            variant: "default"
+                                        });
+                                    }
+                                }}
+                                className={`block h-full ${(subscriber.plan_type?.toLowerCase() === 'gratuito' || subscriber.plan_type?.toLowerCase() === 'free') ? 'cursor-not-allowed' : ''}`}
                             >
-                                <Card className="cursor-pointer bg-green-600 text-white hover:bg-green-700 transition-colors h-full flex flex-col">
+                                <Card className={`cursor-pointer bg-green-600 text-white hover:bg-green-700 transition-colors h-full flex flex-col ${(subscriber.plan_type?.toLowerCase() === 'gratuito' || subscriber.plan_type?.toLowerCase() === 'free') ? 'opacity-50' : ''}`}>
                                     <CardHeader>
                                         <CardTitle className="flex items-center">
                                             <ExternalLink className="mr-3" /> Ver Minha Página Pública
@@ -269,10 +279,15 @@ const SubscriberPage = () => {
                                     </CardHeader>
                                     <CardContent className="flex-grow">
                                         <p>Veja como sua página aparece para os visitantes. Compartilhe seu link com clientes!</p>
+                                        {(subscriber.plan_type?.toLowerCase() === 'gratuito' || subscriber.plan_type?.toLowerCase() === 'free') && (
+                                            <p className="text-yellow-200 text-sm mt-2 font-semibold">⚠️ Disponível apenas em planos pagos</p>
+                                        )}
                                     </CardContent>
-                                    <CardContent>
-                                        <p className="text-sm opacity-90 mt-2">Abre em nova aba</p>
-                                    </CardContent>
+                                    {!(subscriber.plan_type?.toLowerCase() === 'gratuito' || subscriber.plan_type?.toLowerCase() === 'free') && (
+                                        <CardContent>
+                                            <p className="text-sm opacity-90 mt-2">Abre em nova aba</p>
+                                        </CardContent>
+                                    )}
                                 </Card>
                             </a>
                         </motion.div>

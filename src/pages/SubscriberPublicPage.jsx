@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 import { 
@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { subscriberService } from '@/services/subscriberService';
 import { categoryService } from '@/services/categoryService';
+import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 const WhatsAppIcon = () => (
@@ -23,9 +24,12 @@ const WhatsAppIcon = () => (
 
 const SubscriberPublicPage = () => {
     const { slug } = useParams();
+    const { user } = useSupabaseAuth();
+    const navigate = useNavigate();
     const [subscriber, setSubscriber] = useState(null);
     const [categoryName, setCategoryName] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isBlocked, setIsBlocked] = useState(false);
 
     useEffect(() => {
         const loadSubscriber = async () => {
@@ -49,6 +53,17 @@ const SubscriberPublicPage = () => {
                 if (!subscriberData.status) {
                     setLoading(false);
                     return;
+                }
+
+                // Verificar se o usuário logado está tentando ver seu próprio perfil
+                // E se for plano gratuito, bloquear o acesso
+                if (user && subscriberData.user_id === user.id) {
+                    const planType = subscriberData.plan_type?.toLowerCase();
+                    if (planType === 'gratuito' || planType === 'free') {
+                        setIsBlocked(true);
+                        setLoading(false);
+                        return;
+                    }
                 }
 
                 setSubscriber(subscriberData);
@@ -170,6 +185,29 @@ const SubscriberPublicPage = () => {
                 <div className="text-center">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
                     <p className="text-gray-600">Carregando...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (isBlocked) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center max-w-md mx-auto px-4">
+                    <AlertCircle className="mx-auto h-16 w-16 text-yellow-500 mb-4" />
+                    <h1 className="text-3xl font-bold text-gray-900 mb-4">Acesso Restrito</h1>
+                    <p className="text-lg text-gray-700 mb-6">
+                        O plano gratuito não permite visualizar sua própria página pública.
+                    </p>
+                    <p className="text-gray-600 mb-6">
+                        Para visualizar e personalizar sua página pública, faça upgrade para um plano pago.
+                    </p>
+                    <Button 
+                        onClick={() => navigate('/subscriber-area')}
+                        className="bg-blue-600 hover:bg-blue-700"
+                    >
+                        Voltar para o Painel
+                    </Button>
                 </div>
             </div>
         );
