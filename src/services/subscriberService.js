@@ -292,7 +292,8 @@ export const subscriberService = {
       }
 
       if (filters.search) {
-        query = query.or(`name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
+        // Search across available fields (only columns that exist in the table)
+        query = query.or(`name.ilike.%${filters.search}%,email.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
       }
 
       query = query.order('created_at', { ascending: false });

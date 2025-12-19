@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Menu, X, Home, Building2, Newspaper, Calendar, Briefcase, FileText, ShoppingCart, BarChart3, Info, Building, User2 as UserTie, Megaphone, Crown, Search, Rss, Phone, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,16 +9,21 @@ import { useToast } from '@/components/ui/use-toast';
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleSearch = (e) => {
     e.preventDefault();
-    const searchTerm = e.target.elements.search.value;
-    if (!searchTerm) return;
-    toast({
-        title: "🔍 Buscando...",
-        description: `Buscando por "${searchTerm}". Funcionalidade em desenvolvimento.`,
-    });
+    const searchTerm = e.target.elements.search.value.trim();
+    if (!searchTerm) {
+      toast({
+        title: "⚠️ Campo vazio",
+        description: "Por favor, digite um termo para buscar.",
+      });
+      return;
+    }
+    // Navigate to search results page
+    navigate(`/busca?q=${encodeURIComponent(searchTerm)}`);
   };
 
   const navItems = [
