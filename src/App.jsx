@@ -14,6 +14,7 @@ import React from 'react';
     import NewsDetailsPage from '@/pages/NewsDetailsPage';
     import Events from '@/pages/Events';
     import EventDetailsPage from '@/pages/EventDetailsPage';
+    import SearchResults from '@/pages/SearchResults';
     import Jobs from '@/pages/Jobs';
     import JobDetails from '@/pages/JobDetails';
     import Resumes from '@/pages/Resumes';
@@ -227,6 +228,7 @@ import React from 'react';
                 <Route path="/guia-profissional" element={<Professionals />} />
                 <Route path="/guia-profissional/:slug" element={<ProfessionalProfilePage />} />
                 <Route path="/personalidade/:slug" element={<PublicFigurePage />} />
+                <Route path="/busca" element={<SearchResults />} />
                 <Route path="/noticias" element={<News />} />
                 <Route path="/noticia/:slug" element={<NewsDetailsPage />} />
                 <Route path="/noticias/:category" element={<CategoryPage />} />
